@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller build artifacts
+build/
+dist/
+dist_tmp/
+dist_new/
+dist_final/
+*.spec.bak
+
+# Local user configuration
+config.ini
+
+# Log files
+*.log
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
