@@ -23,3 +23,5 @@ config.ini
 # OS
 .DS_Store
 Thumbs.db
+
+*.bak_orig
