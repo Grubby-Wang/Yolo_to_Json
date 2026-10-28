@@ -17,10 +17,11 @@ from datetime import datetime
 
 from settings_manager import SettingsManager
 from converter_worker import ConversionWorker
+from yolo_to_json import DEFAULT_IMAGE_EXTENSIONS
 import lang
 
 
-VERSION = "1.0.0.1"
+VERSION = "1.0.1.0"
 
 # ──────────────────────────────────────────────
 #  Color theme
@@ -49,6 +50,14 @@ FONT_BTN    = ("Segoe UI", 10, "bold")
 # ──────────────────────────────────────────────
 
 class ClassManagerFrame(ttk.LabelFrame):
+    """Class ID → name mapping table.
+
+    Class IDs are stable: deleting a row never renumbers the remaining ones
+    (YOLO class IDs inside .txt files are fixed). IDs without a row fall
+    back to default names (class_N) at conversion time, so the generated
+    default mapping can be used as-is without any manual editing.
+    """
+
     def __init__(self, parent, settings, **kw):
         super().__init__(parent, **kw)
         self._settings = settings
@@ -60,12 +69,29 @@ class ClassManagerFrame(ttk.LabelFrame):
         self._btn_add.pack(side=tk.LEFT, padx=2)
         self._btn_remove = ttk.Button(ctrl_frame, command=self._remove_row)
         self._btn_remove.pack(side=tk.LEFT, padx=2)
-        self._btn_import = ttk.Button(ctrl_frame, command=self._import_csv)
-        self._btn_import.pack(side=tk.LEFT, padx=2)
-        self._btn_export = ttk.Button(ctrl_frame, command=self._export_csv)
-        self._btn_export.pack(side=tk.LEFT, padx=2)
         self._lbl_count = ttk.Label(ctrl_frame, foreground=FG_ACCENT)
         self._lbl_count.pack(side=tk.RIGHT, padx=4)
+
+        gen_frame = ttk.Frame(self)
+        gen_frame.pack(fill=tk.X, padx=8, pady=(2, 0))
+        self._lbl_gen_count = ttk.Label(gen_frame)
+        self._lbl_gen_count.pack(side=tk.LEFT)
+        self._spin_count = ttk.Spinbox(gen_frame, from_=1, to=999, width=5)
+        self._spin_count.set("5")
+        self._spin_count.pack(side=tk.LEFT, padx=(4, 10))
+        self._btn_gen = ttk.Button(gen_frame, command=self._generate_defaults)
+        self._btn_gen.pack(side=tk.LEFT, padx=2)
+
+        io_frame = ttk.Frame(self)
+        io_frame.pack(fill=tk.X, padx=8, pady=(2, 0))
+        self._btn_import = ttk.Button(io_frame, command=self._import_csv)
+        self._btn_import.pack(side=tk.LEFT, padx=2)
+        self._btn_export = ttk.Button(io_frame, command=self._export_csv)
+        self._btn_export.pack(side=tk.LEFT, padx=2)
+        self._btn_import_txt = ttk.Button(io_frame, command=self._import_classes_txt)
+        self._btn_import_txt.pack(side=tk.LEFT, padx=2)
+        self._btn_export_txt = ttk.Button(io_frame, command=self._export_classes_txt)
+        self._btn_export_txt.pack(side=tk.LEFT, padx=2)
 
         self._tree = ttk.Treeview(self, columns=("cid", "name"), show="headings",
                                    height=5, selectmode="browse")
@@ -84,25 +110,33 @@ class ClassManagerFrame(ttk.LabelFrame):
         self._tree.heading("name", text=lang.tr('class_col_name'))
         self._btn_add.configure(text=lang.tr('class_add'))
         self._btn_remove.configure(text=lang.tr('class_remove'))
+        self._lbl_gen_count.configure(text=lang.tr('class_gen_count'))
+        self._btn_gen.configure(text=lang.tr('class_gen'))
         self._btn_import.configure(text=lang.tr('class_import_csv'))
         self._btn_export.configure(text=lang.tr('class_export_csv'))
+        self._btn_import_txt.configure(text=lang.tr('class_import_txt'))
+        self._btn_export_txt.configure(text=lang.tr('class_export_txt'))
         self._update_count()
 
     def _add_row(self):
-        n = len(self._tree.get_children())
-        self._tree.insert("", tk.END, iid=str(n), values=(n, lang.tr('class_default_name', n=n)))
+        cid = self._next_cid()
+        self._tree.insert("", tk.END, values=(cid, lang.tr('class_default_name', n=cid)))
         self._update_count()
 
     def _remove_row(self):
         sel = self._tree.selection()
         if sel:
             self._tree.delete(sel[0])
-            self._renumber()
             self._update_count()
 
-    def _renumber(self):
-        for i, iid in enumerate(self._tree.get_children()):
-            self._tree.set(iid, "cid", i)
+    def _next_cid(self):
+        cids = []
+        for iid in self._tree.get_children():
+            try:
+                cids.append(int(self._tree.set(iid, "cid")))
+            except (TypeError, ValueError):
+                continue
+        return (max(cids) + 1) if cids else 0
 
     def _on_double_click(self, event):
         region = self._tree.identify_region(event.x, event.y)
@@ -133,10 +167,11 @@ class ClassManagerFrame(ttk.LabelFrame):
 
     def set_enabled(self, enabled):
         state = "normal" if enabled else "disabled"
-        self._btn_add.configure(state=state)
-        self._btn_remove.configure(state=state)
-        self._btn_import.configure(state=state)
-        self._btn_export.configure(state=state)
+        for btn in (self._btn_add, self._btn_remove, self._btn_gen,
+                    self._btn_import, self._btn_export,
+                    self._btn_import_txt, self._btn_export_txt):
+            btn.configure(state=state)
+        self._spin_count.configure(state=state)
 
     def _update_count(self):
         n = len(self._tree.get_children())
@@ -144,26 +179,53 @@ class ClassManagerFrame(ttk.LabelFrame):
         if n == 0:
             self._add_row()
 
-    def get_class_list(self):
-        return [self._tree.set(iid, "name") for iid in self._tree.get_children()]
-
-    def save_to_settings(self):
-        mapping = {}
-        for iid in self._tree.get_children():
-            cid = self._tree.set(iid, "cid")
-            name = self._tree.set(iid, "name")
-            mapping[cid] = name
-        self._settings.class_names = mapping
-
-    def _restore(self):
+    def _clear_rows(self):
         for iid in self._tree.get_children():
             self._tree.delete(iid)
+
+    def get_class_mapping(self):
+        mapping = {}
+        for iid in self._tree.get_children():
+            try:
+                cid = int(self._tree.set(iid, "cid"))
+            except (TypeError, ValueError):
+                continue
+            mapping[cid] = self._tree.set(iid, "name")
+        return mapping
+
+    def get_class_list(self):
+        """Dense list of names indexed by class ID; missing IDs get default names."""
+        mapping = self.get_class_mapping()
+        if not mapping:
+            return []
+        size = max(mapping) + 1
+        return [mapping.get(i, lang.tr('class_default_name', n=i)) for i in range(size)]
+
+    def save_to_settings(self):
+        self._settings.class_names = {
+            str(cid): name for cid, name in self.get_class_mapping().items()
+        }
+
+    def _restore(self):
+        self._clear_rows()
         mapping = self._settings.class_names
-        for cid in sorted(mapping.keys(), key=int):
-            name = mapping[cid]
-            self._tree.insert("", tk.END, iid=str(cid), values=(cid, name))
-        if not self._tree.get_children():
-            self._add_row()
+        for cid in sorted((k for k in mapping if str(k).isdigit()), key=int):
+            self._tree.insert("", tk.END, values=(cid, mapping[cid]))
+        self._update_count()
+
+    def _generate_defaults(self):
+        try:
+            n = int(self._spin_count.get())
+        except (TypeError, ValueError):
+            return
+        n = max(1, min(n, 999))
+        if self._tree.get_children() and not messagebox.askyesno(
+                lang.tr('class_gen_title'),
+                lang.tr('class_gen_confirm', n=n, n1=n - 1)):
+            return
+        self._clear_rows()
+        for i in range(n):
+            self._tree.insert("", tk.END, values=(i, lang.tr('class_default_name', n=i)))
         self._update_count()
 
     def _import_csv(self):
@@ -175,17 +237,34 @@ class ClassManagerFrame(ttk.LabelFrame):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 rows = list(csv.reader(f))
-            for iid in self._tree.get_children():
-                self._tree.delete(iid)
-            for row_data in rows:
-                if len(row_data) < 2:
-                    continue
-                cid = row_data[0].strip()
-                name = row_data[1].strip()
-                self._tree.insert("", tk.END, iid=cid, values=(cid, name))
-            self._update_count()
         except Exception as e:
             messagebox.showerror(lang.tr('import_error'), lang.tr('import_failed_msg', e=e))
+            return
+
+        seen = set()
+        entries = []
+        skipped = 0
+        for row_data in rows:
+            if len(row_data) < 2:
+                continue
+            cid_raw = row_data[0].strip()
+            name = row_data[1].strip()
+            if not cid_raw.isdigit() or not name or cid_raw in seen:
+                skipped += 1
+                continue
+            seen.add(cid_raw)
+            entries.append((cid_raw, name))
+
+        if not entries:
+            messagebox.showwarning(lang.tr('class_mapping'), lang.tr('import_no_rows'))
+            return
+        self._clear_rows()
+        for cid, name in sorted(entries, key=lambda e: int(e[0])):
+            self._tree.insert("", tk.END, values=(cid, name))
+        self._update_count()
+        if skipped:
+            messagebox.showinfo(lang.tr('class_mapping'),
+                                lang.tr('import_dup_skipped', n=skipped))
 
     def _export_csv(self):
         path = filedialog.asksaveasfilename(
@@ -197,9 +276,62 @@ class ClassManagerFrame(ttk.LabelFrame):
         try:
             with open(path, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
-                for iid in self._tree.get_children():
-                    writer.writerow([self._tree.set(iid, "cid"),
-                                     self._tree.set(iid, "name")])
+                for cid, name in sorted(self.get_class_mapping().items()):
+                    writer.writerow([cid, name])
+        except Exception as e:
+            messagebox.showerror(lang.tr('export_error'), lang.tr('export_failed_msg', e=e))
+
+    def _read_classes_txt(self, path):
+        """YOLO classes.txt: one class name per line, line number (0-based) = class ID."""
+        for encoding in ('utf-8-sig', 'gbk'):
+            try:
+                with open(path, 'r', encoding=encoding) as f:
+                    return [ln.strip() for ln in f if ln.strip()]
+            except UnicodeDecodeError:
+                continue
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            return [ln.strip() for ln in f if ln.strip()]
+
+    def _import_classes_txt(self):
+        path = filedialog.askopenfilename(
+            filetypes=[(lang.tr('classes_txt_filter'), "*.txt"),
+                       (lang.tr('all_files'), "*.*")]
+        )
+        if not path:
+            return
+        try:
+            names = self._read_classes_txt(path)
+        except Exception as e:
+            messagebox.showerror(lang.tr('import_error'), lang.tr('import_failed_msg', e=e))
+            return
+        if not names:
+            messagebox.showwarning(lang.tr('class_mapping'), lang.tr('classes_txt_empty'))
+            return
+        if self._tree.get_children() and not messagebox.askyesno(
+                lang.tr('class_mapping'),
+                lang.tr('classes_replace_confirm', n=len(names))):
+            return
+        self._clear_rows()
+        for i, name in enumerate(names):
+            self._tree.insert("", tk.END, values=(i, name))
+        self._spin_count.set(str(len(names)))
+        self._update_count()
+
+    def _export_classes_txt(self):
+        names = self.get_class_list()
+        if not names:
+            messagebox.showwarning(lang.tr('class_mapping'), lang.tr('classes_txt_empty'))
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt", initialfile="classes.txt",
+            filetypes=[(lang.tr('classes_txt_filter'), "*.txt"),
+                       (lang.tr('all_files'), "*.*")]
+        )
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write("\n".join(names) + "\n")
         except Exception as e:
             messagebox.showerror(lang.tr('export_error'), lang.tr('export_failed_msg', e=e))
 
@@ -337,12 +469,22 @@ class OutputFrame(ttk.LabelFrame):
         conflict_frame.pack(fill=tk.X, padx=8, pady=(8, 8))
         self._lbl_conflict = ttk.Label(conflict_frame)
         self._lbl_conflict.pack(side=tk.LEFT)
-        self._conflict = tk.StringVar(value=settings.conflict_action.capitalize())
-        self._cmb_conflict = ttk.Combobox(conflict_frame, textvariable=self._conflict,
-                                          state="readonly", width=12)
+        # Store the canonical value, not the localized display text —
+        # comparing display text broke 'skip' whenever the UI language
+        # didn't match the string the worker checks against.
+        self._conflict_value = settings.conflict_action
+        self._cmb_conflict = ttk.Combobox(conflict_frame, state="readonly", width=12)
         self._cmb_conflict.pack(side=tk.LEFT, padx=6)
+        self._cmb_conflict.bind("<<ComboboxSelected>>", self._on_conflict_selected)
 
         self._refresh_texts()
+
+    CONFLICT_KEYS = ('overwrite', 'skip')
+
+    def _on_conflict_selected(self, event=None):
+        idx = self._cmb_conflict.current()
+        if 0 <= idx < len(self.CONFLICT_KEYS):
+            self._conflict_value = self.CONFLICT_KEYS[idx]
 
     def _refresh_texts(self):
         self.configure(text=lang.tr('output_config'))
@@ -353,15 +495,11 @@ class OutputFrame(ttk.LabelFrame):
             lang.tr('conflict_overwrite'),
             lang.tr('conflict_skip'),
         ])
-        # Restore selected item if it changed due to translation
-        cur = self._settings.conflict_action.capitalize()
-        matched = False
-        for i, val in enumerate(self._cmb_conflict.cget('values')):
-            if val.lower() == self._settings.conflict_action:
-                self._cmb_conflict.current(i)
-                matched = True
-                break
-        if not matched:
+        # Preserve the canonical selection across language switches
+        try:
+            self._cmb_conflict.current(self.CONFLICT_KEYS.index(self._conflict_value))
+        except ValueError:
+            self._conflict_value = self.CONFLICT_KEYS[0]
             self._cmb_conflict.current(0)
 
     def _browse_output(self):
@@ -376,7 +514,7 @@ class OutputFrame(ttk.LabelFrame):
     def get_config(self):
         return {
             'output_dir': self._txt_output.get().strip(),
-            'conflict_action': self._conflict.get().lower(),
+            'conflict_action': self._conflict_value,
         }
 
     def set_enabled(self, enabled):
@@ -471,6 +609,15 @@ class ConversionFrame(ttk.LabelFrame):
         self._lbl_status.configure(
             text=lang.tr('status_completed', success=success, total=total),
             foreground=FG_SUCCESS)
+
+    def set_canceled(self, success, total):
+        self._btn_convert.configure(state="normal")
+        self._btn_cancel.configure(state="disabled")
+        self._btn_open.configure(state="normal")
+        self._progress.pack_forget()
+        self._lbl_status.configure(
+            text=lang.tr('status_canceled', success=success, total=total),
+            foreground=FG_WARN)
 
     def update_progress(self, current, total):
         self._progress.configure(maximum=total, value=current)
@@ -791,23 +938,37 @@ class YoloToJsonApp:
             messagebox.showerror(lang.tr('error_title'), self._last_error)
         elif self._last_result:
             r = self._last_result
-            self._conv_panel.set_completed(r.get('success', 0), r.get('total', 0))
-            self.log("info",
-                lang.tr('log_complete',
-                    success=r.get('success', 0),
-                    failed=r.get('failed', 0),
-                    skipped=r.get('skipped', 0)))
-            self._status_var.set(lang.tr('statusbar_done',
-                success=r.get('success', 0), total=r.get('total', 0)))
-            errors = r.get('errors', [])
-            if errors:
-                messagebox.showinfo(
-                    lang.tr('complete_title'),
-                    lang.tr('complete_msg',
+            if r.get('canceled'):
+                done = (r.get('success', 0) + r.get('failed', 0)
+                        + r.get('skipped', 0))
+                self._conv_panel.set_canceled(r.get('success', 0), r.get('total', 0))
+                self.log("warn",
+                    lang.tr('log_canceled',
                         success=r.get('success', 0),
                         failed=r.get('failed', 0),
                         skipped=r.get('skipped', 0),
-                        nerr=len(errors)))
+                        done=done,
+                        total=r.get('total', 0)))
+                self._status_var.set(lang.tr('statusbar_canceled',
+                    success=r.get('success', 0), total=r.get('total', 0)))
+            else:
+                self._conv_panel.set_completed(r.get('success', 0), r.get('total', 0))
+                self.log("info",
+                    lang.tr('log_complete',
+                        success=r.get('success', 0),
+                        failed=r.get('failed', 0),
+                        skipped=r.get('skipped', 0)))
+                self._status_var.set(lang.tr('statusbar_done',
+                    success=r.get('success', 0), total=r.get('total', 0)))
+                errors = r.get('errors', [])
+                if errors:
+                    messagebox.showinfo(
+                        lang.tr('complete_title'),
+                        lang.tr('complete_msg',
+                            success=r.get('success', 0),
+                            failed=r.get('failed', 0),
+                            skipped=r.get('skipped', 0),
+                            nerr=len(errors)))
         else:
             self._conv_panel.set_idle()
             self._status_var.set(lang.tr('statusbar_ready'))
@@ -837,7 +998,7 @@ class YoloToJsonApp:
             'output_dir': self._output_panel.get_config()['output_dir'],
             'conflict_action': self._output_panel.get_config()['conflict_action'],
             'class_list': self._class_panel.get_class_list(),
-            'extensions': ['.jpg', '.jpeg', '.png', '.bmp'],
+            'extensions': DEFAULT_IMAGE_EXTENSIONS,
         }
 
     def _validate(self, config):

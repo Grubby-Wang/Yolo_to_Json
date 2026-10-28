@@ -4,6 +4,7 @@ No external dependencies — uses stdlib configparser.
 """
 
 import os
+import sys
 import json
 import configparser
 
@@ -11,11 +12,20 @@ import configparser
 APP_NAME = "YoloToJson"
 
 
+def _app_dir():
+    """Directory for config.ini: next to the .exe when frozen (PyInstaller),
+    otherwise next to this source file. Writing next to __file__ in a frozen
+    onefile exe would target the temporary _MEIxxxx extraction dir."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 class SettingsManager:
     """Wraps configparser with typed accessors and JSON serialization."""
 
     def __init__(self):
-        ini_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
+        ini_path = os.path.join(_app_dir(), "config.ini")
         self._path = ini_path
         self._cfg = configparser.ConfigParser()
         self._section = "Settings"
@@ -101,11 +111,23 @@ class SettingsManager:
 
     @property
     def conflict_action(self):
-        return self.get_str("conflict_action", "overwrite")
+        """Canonical conflict action: 'overwrite' or 'skip'.
+
+        Older builds stored the localized combo text (e.g. '覆盖'/'跳过'),
+        so anything unexpected is normalized instead of trusted."""
+        val = self.get_str("conflict_action", "overwrite").strip().lower()
+        if val in ('overwrite', 'skip'):
+            return val
+        if val == '跳过':
+            return 'skip'
+        return 'overwrite'
 
     @conflict_action.setter
     def conflict_action(self, value):
-        self.set_str("conflict_action", value)
+        val = str(value).strip().lower()
+        if val not in ('overwrite', 'skip'):
+            val = 'skip' if val == '跳过' else 'overwrite'
+        self.set_str("conflict_action", val)
 
     @property
     def language(self):

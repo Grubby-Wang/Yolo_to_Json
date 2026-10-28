@@ -176,4 +176,27 @@ STRINGS = {
 
     # ── CSV dialogs ──
     'csv_filter':      {'zh': 'CSV文件 (*.csv)', 'en': 'CSV Files (*.csv)'},
+
+    # ── Default classes & classes.txt ──
+    'class_gen_count': {'zh': '类别数量:', 'en': 'Count:'},
+    'class_gen':       {'zh': '生成默认类别', 'en': 'Generate Defaults'},
+    'class_gen_title': {'zh': '生成默认类别', 'en': 'Generate Default Classes'},
+    'class_gen_confirm': {
+        'zh': '将清除现有映射并生成 {n} 个默认类别（类别_0 ~ 类别_{n1}），\n可直接使用默认名称，也可双击名称列修改。是否继续？',
+        'en': 'Replace existing mapping with {n} default classes (class_0 ~ class_{n1})?\nYou can keep the default names or double-click a name to edit it.'},
+    'class_import_txt': {'zh': '导入classes.txt', 'en': 'Import classes.txt'},
+    'class_export_txt': {'zh': '导出classes.txt', 'en': 'Export classes.txt'},
+    'classes_txt_filter': {'zh': 'classes.txt 类别文件 (*.txt)', 'en': 'classes.txt (*.txt)'},
+    'classes_replace_confirm': {
+        'zh': '导入将替换现有类别映射（共 {n} 个类别），是否继续？',
+        'en': 'Import will replace the existing class mapping ({n} classes). Continue?'},
+    'classes_txt_empty': {'zh': '文件中未找到任何类别名称。', 'en': 'No class names found in the file.'},
+    'import_dup_skipped': {'zh': '导入完成，{n} 行因类别ID无效或重复被跳过。', 'en': 'Imported. {n} row(s) skipped (invalid or duplicate class ID).'},
+    'import_no_rows':   {'zh': '文件中没有有效行（需要 类别ID,类别名称）。', 'en': 'No valid rows found (expected: class_id,class_name).'},
+
+    # ── Cancellation ──
+    'status_canceled':  {'zh': '已取消（成功 {success}/{total}）', 'en': 'Canceled ({success}/{total} succeeded)'},
+    'statusbar_canceled': {'zh': '已取消: {success}/{total} 成功', 'en': 'Canceled: {success}/{total} succeeded'},
+    'log_canceled':     {'zh': '转换已取消 — 成功 {success}，失败 {failed}，跳过 {skipped}（已处理 {done}/{total}）。',
+                         'en': 'Conversion canceled — {success} succeeded, {failed} failed, {skipped} skipped ({done}/{total} processed).'},
 }

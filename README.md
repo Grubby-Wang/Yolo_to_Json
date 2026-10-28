@@ -1,4 +1,4 @@
-# YoloToJson v1.0.0.1
+# YoloToJson v1.0.1.0
 
 YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互界面，支持单文件与批量转换，默认中文界面，可切换英文。
 
@@ -8,13 +8,13 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 |------|------|
 | 单文件转换 | 选择一个 `.txt` 文件 + 对应图像，输出一个 `.json` 文件 |
 | 批量转换 | 选择一个包含 `.txt` 文件的文件夹，批量转换为 `.json` |
-| 类别名称映射 | 编辑 Class ID → 类别名称的对应关系，支持 CSV 导入/导出 |
+| 类别名称映射 | 编辑 Class ID → 类别名称的对应关系；可一键生成默认类别直接使用（无需修改），也可双击手动修改；支持 CSV 与 YOLO classes.txt 导入/导出 |
 | 输出配置 | 指定 JSON 输出目录，支持文件冲突策略（覆盖/跳过） |
 | 打开输出目录 | 转换完成后一键在资源管理器中打开 JSON 输出文件夹 |
-| 取消转换 | 批量转换过程中可随时中止 |
+| 取消转换 | 批量转换过程中可随时中止（逐文件检查取消标志，立即停止并保留已完成的结果） |
 | 中英切换 | 菜单栏 语言 → 中文 / English，实时切换界面语言 |
-| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.0.0.1` |
-| 设置持久化 | 上次使用的路径、类别名称、窗口大小等自动保存为 `config.ini` |
+| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.0.1.0` |
+| 设置持久化 | 上次使用的路径、类别名称、窗口大小等自动保存为 `config.ini`（exe 模式保存在 exe 同目录） |
 
 ## 系统要求
 
@@ -28,7 +28,7 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 
 直接双击 `dist/YoloToJson.exe` 启动。
 
-右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.0.0.1`。
+右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.0.1.0`。
 
 ### 方式二：Python 源码运行
 
@@ -114,7 +114,7 @@ class_id x_center y_center width height
 
 `.jpg` `.jpeg` `.png` `.bmp` `.tiff` `.tif`
 
-图像文件名必须与 `.txt` 文件名一致（大小写自动适配）。例如 `image001.txt` 会匹配 `image001.jpg`、`image001.JPG`、`image001.png` 等。
+图像文件名必须与 `.txt` 文件名一致，扩展名大小写不限（`.jpg`、`.JPG`、`.Jpg` 均可匹配）。例如 `image001.txt` 会匹配 `image001.jpg`、`image001.PNG`、`image001.tif` 等。
 
 ## 项目结构
 
@@ -126,7 +126,7 @@ Yolo_to_json/
 ├── settings_manager.py     # 配置持久化 (config.ini, 默认类别 defect)
 ├── lang.py                 # 中英双语 i18n 模块 (>100 条翻译)
 ├── build.spec              # PyInstaller 打包配置 (含版本信息)
-├── version_info.txt        # Windows VSVersionInfo (1.0.0.1)
+├── version_info.txt        # Windows VSVersionInfo (1.0.1.0)
 ├── requirements.txt        # Python 依赖 (Pillow, pyinstaller)
 ├── .vscode/                # VS Code 调试配置
 │   ├── launch.json         # 4 种调试模式 (F5 启动)
@@ -141,7 +141,7 @@ Yolo_to_json/
 ```bash
 pip install Pillow pyinstaller
 python -m PyInstaller build.spec --noconfirm
-# 输出: dist/YoloToJson.exe (含版本信息 1.0.0.1)
+# 输出: dist/YoloToJson.exe (含版本信息 1.0.1.0)
 ```
 
 ## 调试
