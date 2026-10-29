@@ -144,3 +144,43 @@ class SettingsManager:
     @window_geometry.setter
     def window_geometry(self, value):
         self.set_str("window_geometry", value)
+
+    # ---- Crop tool keys ----
+
+    @property
+    def crop_auto_save(self):
+        return self.get_bool("crop_auto_save", False)
+
+    @crop_auto_save.setter
+    def crop_auto_save(self, value):
+        self.set_bool("crop_auto_save", value)
+
+    @property
+    def crop_output_dir(self):
+        return self.get_str("crop_output_dir")
+
+    @crop_output_dir.setter
+    def crop_output_dir(self, value):
+        self.set_str("crop_output_dir", value)
+
+    @property
+    def crop_output_mode(self):
+        """'source' (save next to each image) or 'custom'."""
+        val = self.get_str("crop_output_mode", "source")
+        return val if val in ("source", "custom") else "source"
+
+    @crop_output_mode.setter
+    def crop_output_mode(self, value):
+        self.set_str("crop_output_mode", value if value in ("source", "custom") else "source")
+
+    @property
+    def crop_conflict(self):
+        return self.conflict_action  # shared overwrite/skip semantics
+
+    @property
+    def crop_window_geometry(self):
+        return self.get_str("crop_window_geometry", "1100x720+120+60")
+
+    @crop_window_geometry.setter
+    def crop_window_geometry(self, value):
+        self.set_str("crop_window_geometry", value)

@@ -17,11 +17,12 @@ from datetime import datetime
 
 from settings_manager import SettingsManager
 from converter_worker import ConversionWorker
+from cropper_window import CropWindow
 from yolo_to_json import DEFAULT_IMAGE_EXTENSIONS
 import lang
 
 
-VERSION = "1.0.1.0"
+VERSION = "1.1.0.0"
 
 # ──────────────────────────────────────────────
 #  Color theme
@@ -702,6 +703,7 @@ class YoloToJsonApp:
         self._settings = SettingsManager()
         self._worker = None
         self._callback_queue = queue.Queue()
+        self._crop_win = None
 
         # Apply saved language (default: Chinese)
         lang.set_language(self._settings.language)
@@ -808,6 +810,11 @@ class YoloToJsonApp:
         self._menu_file.add_command(command=self._on_close, accelerator="Alt+F4")
         self._menubar.add_cascade(menu=self._menu_file)
 
+        self._menu_tools = tk.Menu(self._menubar, tearoff=0, bg=BG_PANEL, fg=FG_PRIMARY,
+                                    activebackground=ACCENT_BLUE)
+        self._menu_tools.add_command(command=self._open_cropper)
+        self._menubar.add_cascade(menu=self._menu_tools)
+
         self._menu_view = tk.Menu(self._menubar, tearoff=0, bg=BG_PANEL, fg=FG_PRIMARY,
                                    activebackground=ACCENT_BLUE)
         self._menu_view.add_command(command=self._log_panel.clear)
@@ -838,6 +845,7 @@ class YoloToJsonApp:
         # Rebuild menus (need to tear down and recreate)
         self._menubar.delete(0, tk.END)
         self._menu_file.delete(0, tk.END)
+        self._menu_tools.delete(0, tk.END)
         self._menu_view.delete(0, tk.END)
         self._menu_lang.delete(0, tk.END)
         self._menu_help.delete(0, tk.END)
@@ -845,6 +853,10 @@ class YoloToJsonApp:
         self._menu_file.add_command(label=lang.tr('menu_exit'),
                                      command=self._on_close, accelerator="Alt+F4")
         self._menubar.add_cascade(label=lang.tr('menu_file'), menu=self._menu_file)
+
+        self._menu_tools.add_command(label=lang.tr('menu_crop_tool'),
+                                      command=self._open_cropper)
+        self._menubar.add_cascade(label=lang.tr('menu_tools'), menu=self._menu_tools)
 
         self._menu_view.add_command(label=lang.tr('menu_clear_log'),
                                      command=self._log_panel.clear)
@@ -1040,6 +1052,15 @@ class YoloToJsonApp:
             os.startfile(out_dir)
         else:
             messagebox.showwarning(lang.tr('val_title'), lang.tr('val_specify_output'))
+
+    def _open_cropper(self):
+        """Singleton crop tool window: re-raise if already open."""
+        if self._crop_win is not None and self._crop_win.winfo_exists():
+            self._crop_win.deiconify()
+            self._crop_win.lift()
+            self._crop_win.focus_set()
+        else:
+            self._crop_win = CropWindow(self.root, self._settings)
 
     def _about(self):
         messagebox.showinfo(lang.tr('about_title'), lang.tr('about_text', version=VERSION))
