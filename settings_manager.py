@@ -184,3 +184,21 @@ class SettingsManager:
     @crop_window_geometry.setter
     def crop_window_geometry(self, value):
         self.set_str("crop_window_geometry", value)
+
+    # ---- Annotator keys ----
+
+    @property
+    def annot_auto_save(self):
+        return self.get_bool("annot_auto_save", True)
+
+    @annot_auto_save.setter
+    def annot_auto_save(self, value):
+        self.set_bool("annot_auto_save", value)
+
+    @property
+    def annot_window_geometry(self):
+        return self.get_str("annot_window_geometry", "1200x760+100+40")
+
+    @annot_window_geometry.setter
+    def annot_window_geometry(self, value):
+        self.set_str("annot_window_geometry", value)

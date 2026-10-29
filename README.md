@@ -1,4 +1,4 @@
-# YoloToJson v1.1.0.0
+# YoloToJson v1.2.0.0
 
 YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互界面，支持单文件与批量转换，默认中文界面，可切换英文。
 
@@ -13,9 +13,10 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 | 打开输出目录 | 转换完成后一键在资源管理器中打开 JSON 输出文件夹 |
 | 取消转换 | 批量转换过程中可随时中止（逐文件检查取消标志，立即停止并保留已完成的结果） |
 | 中英切换 | 菜单栏 语言 → 中文 / English，实时切换界面语言 |
-| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.1.0.0` |
+| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.2.0.0` |
 | 设置持久化 | 上次使用的路径、类别名称、窗口大小等自动保存为 `config.ini`（exe 模式保存在 exe 同目录） |
 | 图像裁切工具 | 菜单 工具 → 图像裁切工具：浏览图像、拖拽矩形裁切、批量应用（详见下文） |
+| YOLO 标注工具 | 菜单 工具 → YOLO 标注工具：画框/改框/删框、类别管理、逐图保存 YOLO txt（详见下文） |
 
 ## 图像裁切工具
 
@@ -34,6 +35,19 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 
 裁切框数据结构（`Region`，归一化坐标）与浏览基类（`viewer_base.py`）预留了 `label` 字段与叠加图形扩展点，供后续 YOLO 标注模块复用。
 
+## YOLO 标注工具
+
+主界面菜单 **工具 → YOLO 标注工具** 打开独立窗口，用于直接编辑 YOLO 检测标注：
+
+- **浏览**：打开图像文件夹；自动加载同目录 `classes.txt`（无则使用主界面 config.ini 的类别映射）；每张图自动加载同名 `.txt` 已有标注
+- **画布操作**：拖拽空白处=新建框（用"当前类别"）；点框=选中；拖动=移动；八点手柄=缩放；右键框=改类别/删除；滚轮=以鼠标为中心缩放；中键拖拽=平移；双击=复位适配窗口
+- **类别**：下拉框选择当前类别，数字键 `0-9` 快捷切换；选中框后按数字键直接改该框类别；**编辑类别...** 打开完整类别管理（添加/删除/导入导出 CSV 与 classes.txt）
+- **保存**：`Ctrl+S` 或按钮，写入图片同名 `.txt`（YOLO 归一化格式，六位小数）；类别有改动时同步写 `classes.txt`
+- **自动保存**：默认开启——切换图像时自动保存修改；关闭后切换时会询问（保存/放弃/取消）
+- **撤销/重做**：`Ctrl+Z` / `Ctrl+Y`，每图独立快照栈（上限 100 步），覆盖绘制/移动/缩放/删除/改类
+- **复制上一张标注**：把上一张图的框按归一化坐标复制到当前图（适用于相似帧）
+- **标注列表**：右侧面板实时列出所有框（序号/类别/坐标），与画布双向联动选中
+
 ## 系统要求
 
 - Windows 10 / 11
@@ -46,7 +60,7 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 
 直接双击 `dist/YoloToJson.exe` 启动。
 
-右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.1.0.0`。
+右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.2.0.0`。
 
 ### 方式二：Python 源码运行
 
@@ -146,8 +160,12 @@ Yolo_to_json/
 ├── image_cropper.py        # 裁切核心逻辑 (Region / 单张 / 批量裁切)
 ├── viewer_base.py          # 图像浏览器基类 (缩放/导航/坐标换算, 标注扩展点)
 ├── cropper_window.py       # 裁切工具窗口 (拖拽裁切 / 保存确认 / 批量应用)
+├── ui_theme.py             # 共享颜色/字体常量
+├── class_manager.py        # 类别映射表格组件 (转换器/标注器共用)
+├── yolo_annotation.py      # YOLO 标注核心逻辑 (txt 解析/写入, classes.txt)
+├── annotator_window.py     # YOLO 标注窗口 (完整框编辑 / 撤销 / 自动保存)
 ├── build.spec              # PyInstaller 打包配置 (含版本信息)
-├── version_info.txt        # Windows VSVersionInfo (1.1.0.0)
+├── version_info.txt        # Windows VSVersionInfo (1.2.0.0)
 ├── requirements.txt        # Python 依赖 (Pillow, pyinstaller)
 ├── .vscode/                # VS Code 调试配置
 │   ├── launch.json         # 4 种调试模式 (F5 启动)
@@ -162,7 +180,7 @@ Yolo_to_json/
 ```bash
 pip install Pillow pyinstaller
 python -m PyInstaller build.spec --noconfirm
-# 输出: dist/YoloToJson.exe (含版本信息 1.1.0.0)
+# 输出: dist/YoloToJson.exe (含版本信息 1.2.0.0)
 ```
 
 ## 调试

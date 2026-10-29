@@ -23,9 +23,17 @@ CANVAS_FG = "#9CA3AF"
 
 
 class ImageViewerBase(ttk.Frame):
-    """Browse a list of images on a canvas with fit-to-window scaling."""
+    """Browse a list of images on a canvas with fit-to-window scaling.
 
-    def __init__(self, parent, **kw):
+    With enable_zoom_pan=True the base also provides mouse-wheel zoom
+    (anchored at the cursor), middle-drag panning and double-click fit
+    reset — used by the annotator; the cropper keeps plain fit display.
+    """
+
+    MIN_ZOOM = 0.01
+    MAX_ZOOM = 64.0
+
+    def __init__(self, parent, enable_zoom_pan=False, **kw):
         super().__init__(parent, **kw)
 
         self._files = []
@@ -33,10 +41,13 @@ class ImageViewerBase(ttk.Frame):
         self._pil = None          # current PIL image (original size)
         self._photo = None        # keep a reference so tk doesn't GC it
         self._scale = 1.0
+        self._fit_scale = 1.0
         self._off_x = 0           # canvas coords of displayed image top-left
         self._off_y = 0
         self._disp_w = 0
         self._disp_h = 0
+        self._user_scale = None   # None = fit mode; float = custom zoom
+        self._enable_zoom_pan = enable_zoom_pan
 
         self.on_image_changed = None   # callable(index, path)
 
@@ -48,6 +59,14 @@ class ImageViewerBase(ttk.Frame):
         self.canvas.bind("<ButtonPress-1>", self._press)
         self.canvas.bind("<B1-Motion>", self._motion)
         self.canvas.bind("<ButtonRelease-1>", self._release)
+
+        if enable_zoom_pan:
+            self.canvas.bind("<MouseWheel>", self._on_wheel)
+            self.canvas.bind("<Button-4>", self._on_wheel)      # Linux
+            self.canvas.bind("<Button-5>", self._on_wheel)
+            self.canvas.bind("<ButtonPress-2>", self._start_pan)
+            self.canvas.bind("<B2-Motion>", self._do_pan)
+            self.canvas.bind("<Double-Button-1>", self._reset_fit)
 
     # ── File management ──
 
@@ -106,10 +125,58 @@ class ImageViewerBase(ttk.Frame):
             self._pil = Image.open(self._files[i])
         except Exception:
             self._pil = None
+        self._user_scale = None          # new image → back to fit view
         self.clear_overlay()
         self._render()
         if self.on_image_changed:
             self.on_image_changed(i, self._files[i])
+
+    # ── Zoom / pan ──
+
+    @property
+    def zoom_level(self):
+        return self._scale / self._fit_scale if self._fit_scale else 1.0
+
+    def _on_wheel(self, event):
+        if self._pil is None:
+            return
+        delta = event.delta if hasattr(event, "delta") else 0
+        if getattr(event, "num", 0) == 4:
+            delta = 120
+        elif getattr(event, "num", 0) == 5:
+            delta = -120
+        factor = 1.2 if delta > 0 else 1 / 1.2
+        self.zoom_at(event.x, event.y, factor)
+
+    def zoom_at(self, cx, cy, factor):
+        """Scale by `factor` keeping the image point under canvas (cx, cy) fixed."""
+        if self._pil is None:
+            return
+        ix, iy = self.canvas_to_image(cx, cy)
+        base = self._user_scale if self._user_scale is not None else self._scale
+        new_scale = max(self.MIN_ZOOM, min(self.MAX_ZOOM, base * factor))
+        self._user_scale = new_scale
+        self._scale = new_scale
+        self._off_x = cx - ix * new_scale
+        self._off_y = cy - iy * new_scale
+        self._render()
+
+    def _start_pan(self, event):
+        self._pan_from = (event.x, event.y)
+
+    def _do_pan(self, event):
+        if not getattr(self, "_pan_from", None) or self._pil is None:
+            return
+        dx = event.x - self._pan_from[0]
+        dy = event.y - self._pan_from[1]
+        self._pan_from = (event.x, event.y)
+        self._off_x += dx
+        self._off_y += dy
+        self.canvas.move("all", dx, dy)   # cheap pan; offsets stay in sync
+
+    def _reset_fit(self, event=None):
+        self._user_scale = None
+        self._render()
 
     # ── Coordinate transforms ──
 
@@ -173,11 +240,15 @@ class ImageViewerBase(ttk.Frame):
             return
 
         iw, ih = self._pil.size
-        self._scale = min(w / iw, h / ih)
+        self._fit_scale = min(w / iw, h / ih)
+        if self._user_scale is not None:
+            self._scale = self._user_scale      # offsets kept as-is (pan/zoom)
+        else:
+            self._scale = self._fit_scale
+            self._off_x = (w - round(iw * self._scale)) // 2
+            self._off_y = (h - round(ih * self._scale)) // 2
         self._disp_w = max(1, round(iw * self._scale))
         self._disp_h = max(1, round(ih * self._scale))
-        self._off_x = (w - self._disp_w) // 2
-        self._off_y = (h - self._disp_h) // 2
 
         resample = Image.NEAREST if self._scale >= 1 else Image.BILINEAR
         disp = self._pil.resize((self._disp_w, self._disp_h), resample)
