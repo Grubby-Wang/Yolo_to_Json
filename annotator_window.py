@@ -8,6 +8,7 @@ with optional auto-save on navigation.
 """
 
 import os
+import shutil
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -49,6 +50,7 @@ class AnnotatorViewer(ImageViewerBase):
         self._drag_rect = None         # preview while drawing
         self._drag_idx = None
         self._handle = None
+        self._move_orig = None         # box px snapshot at move-gesture start
         self._gesture_orig = None      # undo snapshot taken at gesture start
         self._undo_stack = []
         self._redo_stack = []
@@ -140,6 +142,7 @@ class AnnotatorViewer(ImageViewerBase):
         self._drag_rect = None
         self._drag_idx = None
         self._handle = None
+        self._move_orig = None
 
     def _notify_change(self):
         if self.on_boxes_changed:
@@ -213,6 +216,8 @@ class AnnotatorViewer(ImageViewerBase):
             self._drag_idx = b
             self.selected = b
             self._drag_start = (ix, iy)
+            iw, ih = self.image_size()
+            self._move_orig = self.boxes[b].to_pixels(iw, ih)
             self._begin_gesture()
             self._render()
             self._notify_selection()
@@ -233,15 +238,17 @@ class AnnotatorViewer(ImageViewerBase):
             x0, y0 = self._drag_start
             self._drag_rect = (min(x0, ix), min(y0, iy), max(x0, ix), max(y0, iy))
         elif self._mode == 'move':
+            # anchor on the gesture-start snapshot: reading the live box
+            # here compounded the displacement frame over frame (box ran away)
             iw, ih = self.image_size()
-            b = self.boxes[self._drag_idx]
-            bx0, by0, bw, bh = b.to_pixels(iw, ih)
+            bx0, by0, bw, bh = self._move_orig
             dx = ix - self._drag_start[0]
             dy = iy - self._drag_start[1]
             dx = max(-bx0, min(dx, iw - (bx0 + bw)))
             dy = max(-by0, min(dy, ih - (by0 + bh)))
             self.boxes[self._drag_idx] = Region.from_pixels(
-                bx0 + dx, by0 + dy, bw, bh, iw, ih, b.label)
+                bx0 + dx, by0 + dy, bw, bh, iw, ih,
+                self.boxes[self._drag_idx].label)
         elif self._mode == 'resize':
             self._resize_to(ix, iy)
         self._render()
@@ -365,6 +372,43 @@ class ClassListShim:
         self.class_names = dict(mapping)
 
 
+class DeleteConfirmDialog(tk.Toplevel):
+    """Modal yes/no dialog with a remember-my-choice checkbox.
+
+    result: (yes: bool, remember: bool), or None when dismissed.
+    """
+
+    def __init__(self, parent, message, title):
+        super().__init__(parent)
+        self.result = None
+        self.title(title)
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        ttk.Label(self, text=message, justify=tk.LEFT, padding=12).pack()
+        self._remember = tk.BooleanVar(value=False)
+        ttk.Checkbutton(self, text=lang.tr('annot_delete_remember'),
+                        variable=self._remember).pack(anchor=tk.W, padx=12)
+
+        btns = ttk.Frame(self, padding=(12, 6, 12, 12))
+        btns.pack(fill=tk.X)
+        ttk.Button(btns, text=lang.tr('annot_delete_yes'),
+                   command=lambda: self._done(True)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btns, text=lang.tr('annot_delete_no'),
+                   command=lambda: self._done(False)).pack(side=tk.LEFT, padx=2)
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    def _done(self, yes):
+        self.result = (yes, self._remember.get())
+        self.destroy()
+
+
 class AnnotatorWindow(tk.Toplevel):
     def __init__(self, parent, settings):
         super().__init__(parent)
@@ -373,6 +417,12 @@ class AnnotatorWindow(tk.Toplevel):
         self._classes_dirty = False
         self._class_names = []
         self._current_class = 0
+        # path → parsed boxes (saved state); drives ✓ marks, filters, jumps
+        self._annot_cache = {}
+        self._filter_state_key = 'all'      # all | annotated | unannotated
+        self._filter_label_key = 'all'      # all | class-id string
+        self._filter_state_keys = ['all', 'annotated', 'unannotated']
+        self._filter_label_keys = ['all']
 
         self.title(f"{lang.tr('annot_tool')} — YoloToJson")
         self.geometry(settings.annot_window_geometry)
@@ -444,11 +494,16 @@ class AnnotatorWindow(tk.Toplevel):
         self._viewer.on_image_changed = self._on_image_changed
         self._viewer.get_class_names = lambda: self._class_names
 
-        side = ttk.LabelFrame(body, text=lang.tr('annot_box_list'))
-        side.grid(row=0, column=1, sticky="ns", padx=(6, 0))
-        self._tree = ttk.Treeview(side, columns=("num", "cls", "geo"),
-                                  show="headings", height=18,
-                                  selectmode="browse")
+        side = ttk.Frame(body)
+        side.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        side.columnconfigure(0, weight=1)
+        side.rowconfigure(0, weight=1)     # box list ≈ 1/4 of the height
+        side.rowconfigure(1, weight=3)     # image list ≈ 3/4
+
+        box_panel = ttk.LabelFrame(side, text=lang.tr('annot_box_list'))
+        box_panel.grid(row=0, column=0, sticky="nsew")
+        self._tree = ttk.Treeview(box_panel, columns=("num", "cls", "geo"),
+                                  show="headings", selectmode="browse")
         self._tree.heading("num", text="#")
         self._tree.heading("cls", text=lang.tr('class_col_name'))
         self._tree.heading("geo", text=lang.tr('annot_col_geo'))
@@ -457,8 +512,36 @@ class AnnotatorWindow(tk.Toplevel):
         self._tree.column("geo", width=120)
         self._tree.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
         self._tree.bind("<<TreeviewSelect>>", self._on_list_select)
-        ttk.Button(side, text=lang.tr('annot_delete_box'),
+        ttk.Button(box_panel, text=lang.tr('annot_delete_box'),
                    command=self._delete_selected).pack(fill=tk.X, padx=4, pady=(0, 4))
+
+        img_panel = ttk.LabelFrame(side, text=lang.tr('annot_img_list'))
+        img_panel.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+        self._img_panel = img_panel
+
+        filt = ttk.Frame(img_panel)
+        filt.pack(fill=tk.X, padx=4, pady=(4, 0))
+        ttk.Label(filt, text=lang.tr('annot_filter_status')).pack(side=tk.LEFT)
+        self._cmb_filter_state = ttk.Combobox(filt, state="readonly", width=9)
+        self._cmb_filter_state['values'] = [lang.tr('annot_filter_all'),
+                                            lang.tr('annot_filter_annotated'),
+                                            lang.tr('annot_filter_unannotated')]
+        self._cmb_filter_state.current(0)
+        self._cmb_filter_state.pack(side=tk.LEFT, padx=(2, 8))
+        self._cmb_filter_state.bind("<<ComboboxSelected>>", self._on_filter_state_changed)
+        ttk.Label(filt, text=lang.tr('annot_filter_label')).pack(side=tk.LEFT)
+        self._cmb_filter_label = ttk.Combobox(filt, state="readonly", width=12)
+        self._cmb_filter_label.pack(side=tk.LEFT, padx=2)
+        self._cmb_filter_label.bind("<<ComboboxSelected>>", self._on_filter_label_changed)
+
+        self._img_tree = ttk.Treeview(img_panel, columns=("chk", "name"),
+                                      show="headings", selectmode="browse")
+        self._img_tree.heading("chk", text=lang.tr('annot_col_annotated'))
+        self._img_tree.heading("name", text=lang.tr('crop_select_col'))
+        self._img_tree.column("chk", width=44, anchor="center", stretch=False)
+        self._img_tree.column("name", width=190)
+        self._img_tree.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self._img_tree.bind("<<TreeviewSelect>>", self._on_img_select)
 
         # Status bar
         self._status_var = tk.StringVar(value=lang.tr('status_ready'))
@@ -476,6 +559,21 @@ class AnnotatorWindow(tk.Toplevel):
         self.bind("<Control-s>", lambda e: self._save())
         for d in "0123456789":
             self.bind(d, lambda e, n=int(d): self._on_digit(n))
+        # A/D one-hand navigation; Shift+D deletes the current image;
+        # Ctrl+Shift+A/D jump to prev/next unannotated (full list scan).
+        for key in ("a", "A"):
+            self.bind(key, lambda e: self._nav_prev())
+            self._viewer.canvas.bind(f"<KeyPress-{key}>", lambda e: self._nav_prev())
+        self.bind("d", lambda e: self._nav_next())
+        self._viewer.canvas.bind("<KeyPress-d>", lambda e: self._nav_next())
+        self.bind("D", lambda e: self._delete_image())
+        self._viewer.canvas.bind("<KeyPress-D>", lambda e: self._delete_image())
+        for seq, step in (("<Control-Shift-KeyPress-A>", -1),
+                          ("<Control-Shift-KeyPress-a>", -1),
+                          ("<Control-Shift-KeyPress-D>", +1),
+                          ("<Control-Shift-KeyPress-d>", +1)):
+            self.bind(seq, lambda e, s=step: self._goto_unannotated(s))
+            self._viewer.canvas.bind(seq, lambda e, s=step: self._goto_unannotated(s))
         self._viewer.canvas.bind("<Left>", lambda e: self._nav_prev())
         self._viewer.canvas.bind("<Right>", lambda e: self._nav_next())
         self._viewer.canvas.bind("<Escape>", self._deselect)
@@ -492,6 +590,15 @@ class AnnotatorWindow(tk.Toplevel):
         self._current_class = min(self._current_class, len(self._class_names) - 1)
         self._cmb_class.current(self._current_class)
         self._viewer.current_class_id = self._current_class
+        # rebuild the label filter, preserving the selection when still valid
+        self._filter_label_keys = ['all'] + [str(i) for i in range(len(self._class_names))]
+        self._cmb_filter_label.configure(
+            values=[lang.tr('annot_filter_all_labels')] + values)
+        if self._filter_label_key not in self._filter_label_keys:
+            self._filter_label_key = 'all'
+        self._cmb_filter_label.current(
+            self._filter_label_keys.index(self._filter_label_key))
+        self._refresh_img_list()
 
     def _on_class_selected(self, event=None):
         idx = self._cmb_class.current()
@@ -544,6 +651,7 @@ class AnnotatorWindow(tk.Toplevel):
             mapping = self._settings.class_names
             self._set_class_names([mapping[str(i)] for i in sorted(
                 (int(k) for k in mapping if str(k).isdigit()))] or [])
+        self._annot_cache.clear()        # drop previous folder's saved states
         self._folder = path
         self._viewer.load_folder(path)
         if not self._viewer.count:
@@ -569,12 +677,164 @@ class AnnotatorWindow(tk.Toplevel):
         return True
 
     def _nav_prev(self):
-        if self._check_dirty_before_nav():
-            self._viewer.prev_image()
+        self._nav_in_filter(-1)
 
     def _nav_next(self):
+        self._nav_in_filter(+1)
+
+    def _nav_in_filter(self, step):
+        """Prev/next inside the filtered image set (wraps around)."""
+        paths = self._filtered_paths()
+        if not paths or not self._viewer.current_path:
+            return
+        cur = self._viewer.current_path
+        if cur in paths:
+            i = paths.index(cur)
+            target = paths[(i + step) % len(paths)]
+        else:
+            # current image is filtered out: step to its neighbor in full order
+            full = self._viewer.files
+            ci = full.index(cur)
+            if step > 0:
+                target = next((p for p in paths if full.index(p) > ci), None) \
+                    or paths[0]
+            else:
+                before = [p for p in paths if full.index(p) < ci]
+                target = before[-1] if before else paths[-1]
+        if target != cur and self._check_dirty_before_nav():
+            self._viewer.goto_index(self._viewer.files.index(target))
+
+    def _goto_unannotated(self, step):
+        """Ctrl+Shift+A/D: scan the FULL list (wrapping) for an unannotated image."""
+        files = self._viewer.files
+        n = len(files)
+        if not n:
+            return
+        cur = self._viewer.index
+        for k in range(1, n + 1):
+            i = (cur + step * k) % n
+            if not self._annot_for(files[i]):
+                if self._check_dirty_before_nav():
+                    self._viewer.goto_index(i)
+                    self._status_var.set(lang.tr('annot_jump_unannotated',
+                                                 name=os.path.basename(files[i])))
+                return
+        self._status_var.set(lang.tr('annot_no_unannotated'))
+
+    # ── Annotation-state cache / filters / image list ──
+
+    def _annot_for(self, path):
+        if path not in self._annot_cache:
+            self._annot_cache[path] = parse_yolo_txt(label_path_for(path))
+        return self._annot_cache[path]
+
+    def _passes_filter(self, path):
+        boxes = self._annot_for(path)
+        if self._filter_state_key == 'annotated' and not boxes:
+            return False
+        if self._filter_state_key == 'unannotated' and boxes:
+            return False
+        if self._filter_label_key != 'all' and \
+                not any(b.label == self._filter_label_key for b in boxes):
+            return False
+        return True
+
+    def _filtered_paths(self):
+        return [p for p in self._viewer.files if self._passes_filter(p)]
+
+    def _on_filter_state_changed(self, event=None):
+        idx = self._cmb_filter_state.current()
+        if 0 <= idx < len(self._filter_state_keys):
+            self._filter_state_key = self._filter_state_keys[idx]
+            self._refresh_img_list()
+
+    def _on_filter_label_changed(self, event=None):
+        idx = self._cmb_filter_label.current()
+        if 0 <= idx < len(self._filter_label_keys):
+            self._filter_label_key = self._filter_label_keys[idx]
+            self._refresh_img_list()
+
+    def _refresh_img_list(self):
+        if getattr(self, "_img_tree", None) is None:
+            return
+        self._img_tree.delete(*self._img_tree.get_children())
+        shown = 0
+        for p in self._viewer.files:
+            if not self._passes_filter(p):
+                continue
+            shown += 1
+            self._img_tree.insert(
+                "", tk.END, iid=p,
+                values=("✓" if self._annot_for(p) else "", os.path.basename(p)))
+        self._img_panel.configure(
+            text=lang.tr('annot_img_list') + f" ({shown}/{self._viewer.count})")
+        self._highlight_current_in_list()
+
+    def _highlight_current_in_list(self):
+        cur = self._viewer.current_path
+        if cur and self._img_tree.exists(cur):
+            self._img_tree.selection_set(cur)
+            self._img_tree.see(cur)
+        else:
+            self._img_tree.selection_remove(self._img_tree.selection())
+
+    def _on_img_select(self, event=None):
+        sel = self._img_tree.selection()
+        if not sel:
+            return
+        path = sel[0]
+        if path == self._viewer.current_path:
+            return
         if self._check_dirty_before_nav():
-            self._viewer.next_image()
+            self._viewer.goto_index(self._viewer.files.index(path))
+
+    # ── Image deletion (Shift+D) ──
+
+    def _delete_dir_for(self, path):
+        return os.path.join(os.path.dirname(os.path.dirname(path)), "_delete")
+
+    def _delete_image(self):
+        path = self._viewer.current_path
+        if not path:
+            return
+        if self._settings.delete_remember:
+            if not self._settings.delete_default_yes:
+                self._status_var.set(lang.tr('annot_delete_skip'))
+                return
+        else:
+            txt = label_path_for(path)
+            dlg = DeleteConfirmDialog(
+                self,
+                lang.tr('annot_delete_msg',
+                        img=os.path.basename(path),
+                        txt=os.path.basename(txt) if os.path.exists(txt) else "—",
+                        dest=self._delete_dir_for(path)),
+                lang.tr('annot_delete_title'))
+            self.wait_window(dlg)
+            if dlg.result is None:
+                return
+            yes, remember = dlg.result
+            if remember:
+                self._settings.delete_remember = True
+                self._settings.delete_default_yes = yes
+            if not yes:
+                return
+        self._do_delete(path)
+
+    def _do_delete(self, path):
+        dest_dir = self._delete_dir_for(path)
+        os.makedirs(dest_dir, exist_ok=True)
+        for src in (path, label_path_for(path)):
+            if os.path.exists(src):
+                dst = os.path.join(dest_dir, os.path.basename(src))
+                if os.path.exists(dst):
+                    os.remove(dst)
+                shutil.move(src, dst)
+        self._annot_cache.pop(path, None)
+        self._dirty = False              # the label file just went with it
+        self._viewer.remove_path(path)   # stays on the following image
+        self._status_var.set(lang.tr('annot_deleted',
+                                     img=os.path.basename(path), dest=dest_dir))
 
     def _on_goto(self, event=None):
         try:
@@ -585,13 +845,26 @@ class AnnotatorWindow(tk.Toplevel):
             self._viewer.goto_index(i - 1)
 
     def _on_image_changed(self, index, path):
+        if path is None:                 # last image was deleted → empty list
+            self._lbl_counter.configure(text="0/0")
+            self._spin_goto.configure(to=1)
+            self._spin_goto.set("1")
+            self._viewer.set_boxes([])
+            self._dirty = False
+            self._refresh_box_list()
+            self._refresh_img_list()
+            self._update_status()
+            return
         total = self._viewer.count
         self._lbl_counter.configure(text=f"{index + 1}/{total}")
         self._spin_goto.configure(to=max(1, total))
         self._spin_goto.set(str(index + 1))
-        self._viewer.set_boxes(parse_yolo_txt(label_path_for(path)))
+        boxes = parse_yolo_txt(label_path_for(path))
+        self._annot_cache[path] = boxes  # keep the shared state cache fresh
+        self._viewer.set_boxes(boxes)
         self._dirty = False
         self._refresh_box_list()
+        self._refresh_img_list()
         self._update_status()
 
     # ── Box edits / list sync ──
@@ -673,6 +946,8 @@ class AnnotatorWindow(tk.Toplevel):
                                      lang.tr('crop_failed', base=os.path.basename(path)),
                                      parent=self)
             return
+        self._annot_cache[path] = self._viewer.get_boxes()  # ✓ mark up to date
+        self._refresh_img_list()
         if self._classes_dirty:
             folder = os.path.dirname(path)
             save_classes_txt(os.path.join(folder, "classes.txt"), self._class_names)

@@ -131,6 +131,30 @@ class ImageViewerBase(ttk.Frame):
         if self.on_image_changed:
             self.on_image_changed(i, self._files[i])
 
+    def remove_path(self, path):
+        """Drop one file from the list and show its neighbor in place.
+
+        The index stays where it was, so the viewer lands on the image that
+        followed the removed one (or the previous one when removing the last).
+        Returns the new current index, or None when the list became empty.
+        """
+        try:
+            idx = self._files.index(path)
+        except ValueError:
+            return self._index
+        self._files.pop(idx)
+        if not self._files:
+            self._index = -1
+            self._pil = None
+            self._user_scale = None
+            self.clear_overlay()
+            self._render()
+            if self.on_image_changed:
+                self.on_image_changed(-1, None)
+            return None
+        self.goto_index(min(idx, len(self._files) - 1))
+        return self._index
+
     # ── Zoom / pan ──
 
     @property

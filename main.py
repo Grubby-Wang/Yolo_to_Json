@@ -28,7 +28,7 @@ from ui_theme import (BG_MAIN, BG_PANEL, BG_INPUT, BG_BUTTON, FG_PRIMARY,
 import lang
 
 
-VERSION = "1.2.0.0"
+VERSION = "1.3.0.0"
 
 
 # ──────────────────────────────────────────────

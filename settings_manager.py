@@ -202,3 +202,20 @@ class SettingsManager:
     @annot_window_geometry.setter
     def annot_window_geometry(self, value):
         self.set_str("annot_window_geometry", value)
+
+    @property
+    def delete_remember(self):
+        """Image-delete confirmation: remember the user's yes/no choice."""
+        return self.get_bool("delete_remember", False)
+
+    @delete_remember.setter
+    def delete_remember(self, value):
+        self.set_bool("delete_remember", value)
+
+    @property
+    def delete_default_yes(self):
+        return self.get_bool("delete_default_yes", True)
+
+    @delete_default_yes.setter
+    def delete_default_yes(self, value):
+        self.set_bool("delete_default_yes", value)
