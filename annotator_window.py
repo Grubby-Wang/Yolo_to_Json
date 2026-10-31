@@ -420,7 +420,7 @@ class AnnotatorWindow(tk.Toplevel):
         self._dirty = False
         self._classes_dirty = False
         self._class_names = []
-        self._current_class = 0
+        self._current_class = 0  # restored from settings once classes load
         # path → parsed boxes (saved state); drives ✓ marks, filters, jumps
         self._annot_cache = {}
         self._filter_state_key = 'all'      # all | annotated | unannotated
@@ -591,7 +591,9 @@ class AnnotatorWindow(tk.Toplevel):
             self._class_names = [lang.tr('class_default_name', n=0)]
         values = [f"{i}  {n}" for i, n in enumerate(self._class_names)]
         self._cmb_class.configure(values=values)
-        self._current_class = min(self._current_class, len(self._class_names) - 1)
+        # default to the last class the user drew with (clamped to range)
+        self._current_class = min(max(0, self._settings.annot_last_class),
+                                  len(self._class_names) - 1)
         self._cmb_class.current(self._current_class)
         self._viewer.current_class_id = self._current_class
         # rebuild the label filter, preserving the selection when still valid
@@ -609,12 +611,14 @@ class AnnotatorWindow(tk.Toplevel):
         if idx >= 0:
             self._current_class = idx
             self._viewer.current_class_id = idx
+            self._settings.annot_last_class = idx
 
     def _on_digit(self, n):
         if n < len(self._class_names):
             self._current_class = n
             self._cmb_class.current(n)
             self._viewer.current_class_id = n
+            self._settings.annot_last_class = n
             self._viewer.set_class_of_selected(n)
 
     def _edit_classes(self):
@@ -644,8 +648,12 @@ class AnnotatorWindow(tk.Toplevel):
     # ── Folder open / navigation ──
 
     def _open_folder(self):
-        path = filedialog.askdirectory(title=lang.tr('select_folder_title'))
+        # parent=self: without it the dialog attaches to the main window,
+        # which then gets raised over this one when the dialog closes
+        path = filedialog.askdirectory(title=lang.tr('select_folder_title'),
+                                       parent=self)
         if not path:
+            self._refocus()
             return
         classes_path = os.path.join(path, "classes.txt")
         if os.path.exists(classes_path):
@@ -662,6 +670,13 @@ class AnnotatorWindow(tk.Toplevel):
             messagebox.showwarning(lang.tr('annot_tool'),
                                    lang.tr('log_no_txt', path=path), parent=self)
         self._btn_save.configure(state="normal")
+        self._refocus()
+
+    def _refocus(self):
+        """Bring this tool window back to front after a native dialog."""
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def _check_dirty_before_nav(self):
         """True = proceed; False = stay. Auto-saves or asks first."""

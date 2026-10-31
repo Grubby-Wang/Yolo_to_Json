@@ -201,6 +201,7 @@ class ClassManagerFrame(ttk.LabelFrame):
 
     def _import_csv(self):
         path = filedialog.askopenfilename(
+            parent=self.winfo_toplevel(),
             filetypes=[(lang.tr('csv_filter'), "*.csv")]
         )
         if not path:
@@ -239,6 +240,7 @@ class ClassManagerFrame(ttk.LabelFrame):
 
     def _export_csv(self):
         path = filedialog.asksaveasfilename(
+            parent=self.winfo_toplevel(),
             defaultextension=".csv",
             filetypes=[(lang.tr('csv_filter'), "*.csv")]
         )
@@ -258,6 +260,7 @@ class ClassManagerFrame(ttk.LabelFrame):
 
     def _import_classes_txt(self):
         path = filedialog.askopenfilename(
+            parent=self.winfo_toplevel(),
             filetypes=[(lang.tr('classes_txt_filter'), "*.txt"),
                        (lang.tr('all_files'), "*.*")]
         )
@@ -283,6 +286,7 @@ class ClassManagerFrame(ttk.LabelFrame):
             messagebox.showwarning(lang.tr('class_mapping'), lang.tr('classes_txt_empty'))
             return
         path = filedialog.asksaveasfilename(
+            parent=self.winfo_toplevel(),
             defaultextension=".txt", initialfile="classes.txt",
             filetypes=[(lang.tr('classes_txt_filter'), "*.txt"),
                        (lang.tr('all_files'), "*.*")]

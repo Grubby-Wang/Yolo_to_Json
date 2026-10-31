@@ -351,19 +351,32 @@ class CropWindow(tk.Toplevel):
     # ── File open / navigation ──
 
     def _open_folder(self):
-        path = filedialog.askdirectory(title=lang.tr('select_folder_title'))
+        # parent=self: keeps the tool window (not the main window) as the
+        # dialog owner, so the main window doesn't cover us afterwards
+        path = filedialog.askdirectory(title=lang.tr('select_folder_title'),
+                                       parent=self)
         if not path:
+            self._refocus()
             return
         self._viewer.load_folder(path)
         if not self._viewer.count:
             self._log('warn', lang.tr('log_no_txt', path=path))
+        self._refocus()
 
     def _open_files(self):
         paths = filedialog.askopenfilenames(
+            parent=self,
             filetypes=[(lang.tr('image_filter'), "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
                        (lang.tr('all_files'), "*.*")])
         if paths:
             self._viewer.set_files(sorted(paths))
+        self._refocus()
+
+    def _refocus(self):
+        """Bring this tool window back to front after a native dialog."""
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def _viewer_prev(self):
         self._viewer.prev_image()
@@ -557,12 +570,14 @@ class CropWindow(tk.Toplevel):
 
     def _browse_out_dir(self):
         path = filedialog.askdirectory(
+            parent=self,
             initialdir=self._txt_out_dir.get() or "",
             title=lang.tr('select_output_folder'))
         if path:
             self._txt_out_dir.set(path)
             self._out_mode.set("custom")
             self._persist_output()
+        self._refocus()
 
     # ── Log ──
 

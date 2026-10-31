@@ -219,3 +219,15 @@ class SettingsManager:
     @delete_default_yes.setter
     def delete_default_yes(self, value):
         self.set_bool("delete_default_yes", value)
+
+    @property
+    def annot_last_class(self):
+        """Annotator: last class id used for drawing (restored on startup)."""
+        try:
+            return max(0, int(self.get_str("annot_last_class", "0")))
+        except (ValueError, TypeError):
+            return 0
+
+    @annot_last_class.setter
+    def annot_last_class(self, value):
+        self.set_str("annot_last_class", max(0, int(value)))

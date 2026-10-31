@@ -28,7 +28,16 @@ from ui_theme import (BG_MAIN, BG_PANEL, BG_INPUT, BG_BUTTON, FG_PRIMARY,
 import lang
 
 
-VERSION = "1.3.1.0"
+VERSION = "1.3.2.0"
+
+
+def _resource_path(rel):
+    """Absolute path to a bundled resource (works in source and frozen exe)."""
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, rel)
+
+
+ICON_PATH = _resource_path(os.path.join("icon", "main_label.png"))
 
 
 # ──────────────────────────────────────────────
@@ -418,6 +427,13 @@ class YoloToJsonApp:
         self.root.geometry(self._settings.window_geometry)
         self.root.minsize(960, 700)
         self.root.configure(bg=BG_MAIN)
+
+        # App icon for the main window and every Toplevel (crop/annotator)
+        try:
+            self._icon = tk.PhotoImage(master=self.root, file=ICON_PATH)
+            self.root.iconphoto(True, self._icon)
+        except tk.TclError:
+            self._icon = None
 
         self._setup_style()
         self._build_ui()

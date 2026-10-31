@@ -12,7 +12,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('icon/main_label.png', 'icon')],
     hiddenimports=[
         'PIL',
         'PIL.Image',
@@ -52,4 +52,5 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,
     version='version_info.txt',
+    icon='icon/main_label.ico',
 )
