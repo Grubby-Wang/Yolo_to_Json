@@ -171,7 +171,7 @@ Yolo_to_json/
 │   ├── launch.json         # 4 种调试模式 (F5 启动)
 │   └── settings.json       # Python 解释器路径
 ├── dist/
-│   └── YoloToJson.exe      # 独立可执行文件 (约 19 MB)
+│   └── YoloToJson.exe      # 独立可执行文件 (约 30 MB)
 └── README.md
 ```
 
