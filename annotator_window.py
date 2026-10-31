@@ -158,8 +158,8 @@ class AnnotatorViewer(ImageViewerBase):
         iw, ih = self.image_size()
         return self.boxes[i].to_pixels(iw, ih)  # (px, py, pw, ph)
 
-    def _handle_points(self, px):
-        x0, y0, x1, y1 = px[0], px[1], px[0] + px[2], px[1] + px[3]
+    def _handle_points(self, x0, y0, x1, y1):
+        """The 8 resize-handle anchor points, from box corners in image px."""
         mx, my = (x0 + x1) / 2, (y0 + y1) / 2
         return {'nw': (x0, y0), 'n': (mx, y0), 'ne': (x1, y0), 'e': (x1, my),
                 'se': (x1, y1), 's': (mx, y1), 'sw': (x0, y1), 'w': (x0, my)}
@@ -170,7 +170,7 @@ class AnnotatorViewer(ImageViewerBase):
         r = HANDLE / self._scale + 2 / self._scale
         px = self._box_px(self.selected)
         x0, y0, x1, y1 = px[0], px[1], px[0] + px[2], px[1] + px[3]
-        for name, (hx, hy) in self._handle_points(px).items():
+        for name, (hx, hy) in self._handle_points(x0, y0, x1, y1).items():
             # edge handles only meaningful when the edge can move
             if abs(ix - hx) <= r and abs(iy - hy) <= r:
                 if name == 'n' and (y1 - y0) < 4 * r:
@@ -275,7 +275,11 @@ class AnnotatorViewer(ImageViewerBase):
             return
         ix, iy = self._clamp_pt(ix, iy)
         if self._mode == 'draw':
-            rect = self._drag_rect
+            # derive from start+end, not _drag_rect: the latter is only
+            # updated by move events, so press+release without any motion
+            # would otherwise be misread as a zero-size click
+            x0, y0 = self._drag_start
+            rect = (min(x0, ix), min(y0, iy), max(x0, ix), max(y0, iy))
             pw = rect[2] - rect[0]
             ph = rect[3] - rect[1]
             if pw >= MIN_BOX_PX and ph >= MIN_BOX_PX:
@@ -352,7 +356,7 @@ class AnnotatorViewer(ImageViewerBase):
                     x0 + 1, y0 + 3, text=label, fill=color,
                     anchor="nw", font=("Segoe UI", 9, "bold"), tags=("overlay",))
             if sel:
-                for hx, hy in self._handle_points((px, py, px + pw, py + ph)).values():
+                for hx, hy in self._handle_points(px, py, px + pw, py + ph).values():
                     cx, cy = self.image_to_canvas(hx, hy)
                     self.canvas.create_rectangle(
                         cx - HANDLE, cy - HANDLE, cx + HANDLE, cy + HANDLE,
