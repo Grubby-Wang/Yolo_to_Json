@@ -44,6 +44,7 @@ class AnnotatorViewer(ImageViewerBase):
         self.get_class_names = lambda: []   # injected by the window
         self.on_boxes_changed = None   # callable()
         self.on_selection_changed = None    # callable()
+        self.on_class_assigned = None  # callable(cid) after a box got class cid
 
         self._mode = None              # 'draw' | 'move' | 'resize'
         self._drag_start = None        # image-px anchor
@@ -116,6 +117,10 @@ class AnnotatorViewer(ImageViewerBase):
         self._begin_gesture()
         b.label = str(cid)
         self._commit_gesture()
+        # the class just used becomes the current one: the next drawn box
+        # keeps it ("change 1→2" must make the NEXT box 2 as well)
+        if self.on_class_assigned:
+            self.on_class_assigned(cid)
 
     # ── Gesture plumbing ──
 
@@ -497,6 +502,7 @@ class AnnotatorWindow(tk.Toplevel):
         self._viewer.on_selection_changed = self._on_selection_changed
         self._viewer.on_image_changed = self._on_image_changed
         self._viewer.get_class_names = lambda: self._class_names
+        self._viewer.on_class_assigned = self._on_class_assigned
 
         side = ttk.Frame(body)
         side.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
@@ -612,6 +618,16 @@ class AnnotatorWindow(tk.Toplevel):
             self._current_class = idx
             self._viewer.current_class_id = idx
             self._settings.annot_last_class = idx
+
+    def _on_class_assigned(self, cid):
+        """A box was (re)assigned class cid (right-click menu / digit key):
+        make cid the current class so the NEXT drawn box uses it too."""
+        if not (0 <= cid < len(self._class_names)):
+            return
+        self._current_class = cid
+        self._cmb_class.current(cid)
+        self._viewer.current_class_id = cid
+        self._settings.annot_last_class = cid
 
     def _on_digit(self, n):
         if n < len(self._class_names):

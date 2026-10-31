@@ -1,4 +1,4 @@
-# YoloToJson v1.3.2.0
+# YoloToJson v1.3.3.0
 
 YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互界面，支持单文件与批量转换，默认中文界面，可切换英文。
 
@@ -13,7 +13,7 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 | 打开输出目录 | 转换完成后一键在资源管理器中打开 JSON 输出文件夹 |
 | 取消转换 | 批量转换过程中可随时中止（逐文件检查取消标志，立即停止并保留已完成的结果） |
 | 中英切换 | 菜单栏 语言 → 中文 / English，实时切换界面语言 |
-| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.3.2.0` |
+| 版本信息 | 窗口标题栏、关于对话框、.exe 文件属性中显示 `1.3.3.0` |
 | 设置持久化 | 上次使用的路径、类别名称、窗口大小等自动保存为 `config.ini`（exe 模式保存在 exe 同目录） |
 | 图像裁切工具 | 菜单 工具 → 图像裁切工具：浏览图像、拖拽矩形裁切、批量应用（详见下文） |
 | YOLO 标注工具 | 菜单 工具 → YOLO 标注工具：画框/改框/删框、类别管理、逐图保存 YOLO txt（详见下文） |
@@ -64,7 +64,7 @@ YOLO 标注格式转 LabelMe JSON 格式的桌面工具，提供图形化交互�
 
 直接双击 `dist/YoloToJson.exe` 启动。
 
-右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.3.2.0`。
+右键 `.exe` → 属性 → 详细信息，可查看版本号 `1.3.3.0`。
 
 ### 方式二：Python 源码运行
 
@@ -169,7 +169,7 @@ Yolo_to_json/
 ├── yolo_annotation.py      # YOLO 标注核心逻辑 (txt 解析/写入, classes.txt)
 ├── annotator_window.py     # YOLO 标注窗口 (完整框编辑 / 撤销 / 自动保存)
 ├── build.spec              # PyInstaller 打包配置 (含版本信息)
-├── version_info.txt        # Windows VSVersionInfo (1.3.2.0)
+├── version_info.txt        # Windows VSVersionInfo (1.3.3.0)
 ├── requirements.txt        # Python 依赖 (Pillow, pyinstaller)
 ├── .vscode/                # VS Code 调试配置
 │   ├── launch.json         # 4 种调试模式 (F5 启动)
@@ -184,7 +184,7 @@ Yolo_to_json/
 ```bash
 pip install Pillow pyinstaller
 python -m PyInstaller build.spec --noconfirm
-# 输出: dist/YoloToJson.exe (含版本信息 1.3.2.0)
+# 输出: dist/YoloToJson.exe (含版本信息 1.3.3.0)
 ```
 
 ## 调试
