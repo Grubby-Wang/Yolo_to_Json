@@ -171,6 +171,11 @@ Yolo_to_json/
 ├── build.spec              # PyInstaller 打包配置 (含版本信息)
 ├── version_info.txt        # Windows VSVersionInfo (1.3.3.0)
 ├── requirements.txt        # Python 依赖 (Pillow, pyinstaller)
+├── icon/                   # 打包资源 (main_label.ico / main_label.png)
+├── docs/                   # 项目文档
+│   ├── STRUCTURE.md        # 项目结构、数据流、编码约定
+│   ├── OPTIMIZATION_BACKLOG.md  # 已确认缺陷与优化优先级
+│   └── history/            # 历史计划归档
 ├── .vscode/                # VS Code 调试配置
 │   ├── launch.json         # 4 种调试模式 (F5 启动)
 │   └── settings.json       # Python 解释器路径
