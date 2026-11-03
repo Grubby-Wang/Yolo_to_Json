@@ -250,6 +250,7 @@ class CropWindow(tk.Toplevel):
         self.minsize(860, 560)
         self.configure(bg="#F0F2F5")
 
+        self._i18n = []          # (widget, lang key) pairs retranslated in place
         self._build_ui()
         self._bind_keys()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -262,43 +263,47 @@ class CropWindow(tk.Toplevel):
         bar1 = ttk.Frame(self)
         bar1.pack(fill=tk.X, padx=8, pady=(8, 2))
 
-        ttk.Button(bar1, text=lang.tr('crop_open_folder'),
-                   command=self._open_folder).pack(side=tk.LEFT, padx=2)
-        ttk.Button(bar1, text=lang.tr('crop_open_files'),
-                   command=self._open_files).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, command=self._open_folder),
+                        'crop_open_folder').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, command=self._open_files),
+                        'crop_open_files').pack(side=tk.LEFT, padx=2)
         ttk.Separator(bar1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-        ttk.Button(bar1, text=lang.tr('crop_prev'), width=7,
-                   command=self._viewer_prev).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, width=7, command=self._viewer_prev),
+                        'crop_prev').pack(side=tk.LEFT, padx=2)
         self._lbl_counter = ttk.Label(bar1, text="-", foreground="#2563EB")
         self._lbl_counter.pack(side=tk.LEFT, padx=6)
-        ttk.Button(bar1, text=lang.tr('crop_next'), width=7,
-                   command=self._viewer_next).pack(side=tk.LEFT, padx=2)
-        ttk.Label(bar1, text=lang.tr('crop_goto')).pack(side=tk.LEFT, padx=(10, 2))
+        self._bind_text(ttk.Button(bar1, width=7, command=self._viewer_next),
+                        'crop_next').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Label(bar1), 'crop_goto').pack(side=tk.LEFT, padx=(10, 2))
         self._spin_goto = ttk.Spinbox(bar1, from_=1, to=1, width=5)
         self._spin_goto.pack(side=tk.LEFT)
         self._spin_goto.bind("<Return>", self._on_goto)
 
         self._auto_save_var = tk.BooleanVar(value=self._settings.crop_auto_save)
-        ttk.Checkbutton(bar1, text=lang.tr('crop_auto_save'),
-                        variable=self._auto_save_var,
-                        command=self._persist_auto_save).pack(side=tk.RIGHT, padx=4)
+        self._bind_text(
+            ttk.Checkbutton(bar1, variable=self._auto_save_var,
+                            command=self._persist_auto_save),
+            'crop_auto_save').pack(side=tk.RIGHT, padx=4)
 
         # Toolbar row 2: output target / conflict / batch actions
         bar2 = ttk.Frame(self)
         bar2.pack(fill=tk.X, padx=8, pady=(2, 4))
 
         self._out_mode = tk.StringVar(value=self._settings.crop_output_mode)
-        ttk.Radiobutton(bar2, text=lang.tr('crop_out_source'), value="source",
-                        variable=self._out_mode).pack(side=tk.LEFT, padx=2)
-        ttk.Radiobutton(bar2, text=lang.tr('crop_out_custom'), value="custom",
-                        variable=self._out_mode).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Radiobutton(bar2, value="source",
+                                        variable=self._out_mode),
+                        'crop_out_source').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Radiobutton(bar2, value="custom",
+                                        variable=self._out_mode),
+                        'crop_out_custom').pack(side=tk.LEFT, padx=2)
         self._txt_out_dir = tk.StringVar(value=self._settings.crop_output_dir)
         ttk.Entry(bar2, textvariable=self._txt_out_dir, width=30).pack(
             side=tk.LEFT, padx=4, fill=tk.X, expand=True)
-        ttk.Button(bar2, text=lang.tr('browse'), width=7,
-                   command=self._browse_out_dir).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar2, width=7, command=self._browse_out_dir),
+                        'browse').pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(bar2, text=lang.tr('if_file_exists')).pack(side=tk.LEFT, padx=(10, 2))
+        self._bind_text(ttk.Label(bar2), 'if_file_exists').pack(
+            side=tk.LEFT, padx=(10, 2))
         self._cmb_conflict = ttk.Combobox(bar2, state="readonly", width=8)
         self._cmb_conflict['values'] = [lang.tr('conflict_overwrite'),
                                         lang.tr('conflict_skip')]
@@ -316,13 +321,13 @@ class CropWindow(tk.Toplevel):
         # Batch action bar
         bar3 = ttk.Frame(self)
         bar3.pack(fill=tk.X, padx=8, pady=(2, 2))
-        ttk.Button(bar3, text=lang.tr('crop_btn_apply_all'),
-                   command=self._apply_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(bar3, text=lang.tr('crop_btn_apply_sel'),
-                   command=self._apply_selected).pack(side=tk.LEFT, padx=2)
-        self._btn_cancel_batch = ttk.Button(bar3, text=lang.tr('btn_cancel'),
-                                            command=self._cancel_batch,
-                                            state="disabled")
+        self._bind_text(ttk.Button(bar3, command=self._apply_all),
+                        'crop_btn_apply_all').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar3, command=self._apply_selected),
+                        'crop_btn_apply_sel').pack(side=tk.LEFT, padx=2)
+        self._btn_cancel_batch = self._bind_text(
+            ttk.Button(bar3, command=self._cancel_batch, state="disabled"),
+            'btn_cancel')
         self._btn_cancel_batch.pack(side=tk.LEFT, padx=2)
         self._lbl_rect = ttk.Label(bar3, foreground="#2563EB")
         self._lbl_rect.pack(side=tk.RIGHT, padx=4)
@@ -339,6 +344,26 @@ class CropWindow(tk.Toplevel):
         self._log_text.pack(fill=tk.X, padx=8, pady=(2, 8))
         for level, color in LEVEL_COLORS.items():
             self._log_text.tag_config(level, foreground=color)
+
+    def _bind_text(self, widget, key):
+        """Register a widget's text so a live language switch can retranslate it."""
+        self._i18n.append((widget, key))
+        widget.configure(text=lang.tr(key))
+        return widget
+
+    def _refresh_texts(self):
+        """Re-apply every localized string after lang.set_language()."""
+        self.title(f"{lang.tr('crop_tool')} — YoloToJson")
+        for widget, key in self._i18n:
+            try:
+                widget.configure(text=lang.tr(key))
+            except tk.TclError:
+                pass                    # widget already destroyed
+        # The conflict combo shows localized labels but stores a stable key
+        self._cmb_conflict['values'] = [lang.tr('conflict_overwrite'),
+                                        lang.tr('conflict_skip')]
+        self._cmb_conflict.current(CONFLICT_KEYS.index(self._conflict))
+        self._update_rect_label(self._viewer.region)
 
     def _bind_keys(self):
         self.bind("<Left>", lambda e: self._viewer_prev())

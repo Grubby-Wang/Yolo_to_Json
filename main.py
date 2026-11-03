@@ -602,6 +602,11 @@ class YoloToJsonApp:
         self._conv_panel._refresh_texts()
         self._log_panel._refresh_texts()
 
+        # Tool windows are long-lived Toplevels: retranslate them in place
+        for win in (self._crop_win, self._annot_win):
+            if win is not None and win.winfo_exists():
+                win._refresh_texts()
+
     # ── Conversion lifecycle ──
 
     def _start_conversion(self):
@@ -693,7 +698,8 @@ class YoloToJsonApp:
                     lang.tr('log_complete',
                         success=r.get('success', 0),
                         failed=r.get('failed', 0),
-                        skipped=r.get('skipped', 0)))
+                        skipped=r.get('skipped', 0),
+                        total=r.get('total', 0)))
                 self._status_var.set(lang.tr('statusbar_done',
                     success=r.get('success', 0), total=r.get('total', 0)))
                 errors = r.get('errors', [])

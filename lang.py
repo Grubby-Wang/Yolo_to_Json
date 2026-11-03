@@ -4,6 +4,8 @@ Internationalization (i18n) module for YoloToJson.
 Supports Chinese (zh) and English (en). Default: Chinese.
 """
 
+import warnings
+
 
 # ── Available languages ──
 
@@ -41,12 +43,25 @@ def tr(key, *args, **kwargs):
     """Return the translated string for the given key in the current language.
 
     Supports Python format-style interpolation: tr('found_files', n=5)
+
+    Never raises for a bad key or mismatched placeholders: a missing key
+    returns the key itself and a format failure returns the raw template
+    (both warn), so a wording bug cannot abort a UI callback.
     """
-    val = STRINGS.get(key, {}).get(_current)
+    entry = STRINGS.get(key)
+    if entry is None:
+        warnings.warn(f"lang.tr: undefined key {key!r}", stacklevel=2)
+        return key
+    val = entry.get(_current)
     if val is None:
-        val = STRINGS.get(key, {}).get('en', key)
+        val = entry.get('en', key)
     if args or kwargs:
-        return val.format(*args, **kwargs)
+        try:
+            return val.format(*args, **kwargs)
+        except (KeyError, IndexError, ValueError) as exc:
+            warnings.warn(
+                f"lang.tr: {key!r} placeholder mismatch ({exc}); "
+                f"returning the raw template", stacklevel=2)
     return val
 
 
@@ -148,7 +163,7 @@ STRINGS = {
     'log_failed':      {'zh': '转换失败: {base}.txt', 'en': 'Failed to convert {base}.txt'},
     'log_skipped':     {'zh': '跳过 {base}.txt — 未找到匹配的图像', 'en': 'Skipped {base}.txt — no matching image found'},
     'log_skip_exists': {'zh': '跳过 {base}.txt — 输出文件已存在', 'en': 'Skipped {base}.txt — output already exists'},
-    'log_complete':    {'zh': '转换完成。成功 {success}，失败 {failed}，跳过 {skipped}（共 {total}）。', 'en': 'Conversion complete. {success} succeeded, {failed} failed, {skipped} skipped.'},
+    'log_complete':    {'zh': '转换完成。成功 {success}，失败 {failed}，跳过 {skipped}（共 {total}）。', 'en': 'Conversion complete. {success} succeeded, {failed} failed, {skipped} skipped (of {total}).'},
     'log_cancel_req':  {'zh': '已请求取消...', 'en': 'Cancellation requested...'},
     'log_no_txt':      {'zh': '在 {path} 中未找到 .txt 文件', 'en': 'No .txt files found in {path}'},
     'log_input_missing': {'zh': '输入文件夹不存在: {path}', 'en': 'Input folder does not exist: {path}'},

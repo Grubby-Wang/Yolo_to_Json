@@ -1,0 +1,6 @@
+# -*- coding: utf-8 -*-
+"""Test-runner extras. Runtime deps stay in requirements.txt."""
+
+-r requirements.txt
+
+pytest>=8.0

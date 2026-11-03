@@ -438,6 +438,7 @@ class AnnotatorWindow(tk.Toplevel):
         self.minsize(960, 600)
         self.configure(bg="#F0F2F5")
 
+        self._i18n = []          # (widget, lang key) pairs retranslated in place
         self._build_ui()
         self._bind_keys()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -447,47 +448,51 @@ class AnnotatorWindow(tk.Toplevel):
     def _build_ui(self):
         bar1 = ttk.Frame(self)
         bar1.pack(fill=tk.X, padx=8, pady=(8, 2))
-        ttk.Button(bar1, text=lang.tr('crop_open_folder'),
-                   command=self._open_folder).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, command=self._open_folder),
+                        'crop_open_folder').pack(side=tk.LEFT, padx=2)
         ttk.Separator(bar1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-        ttk.Button(bar1, text=lang.tr('crop_prev'), width=7,
-                   command=self._nav_prev).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, width=7, command=self._nav_prev),
+                        'crop_prev').pack(side=tk.LEFT, padx=2)
         self._lbl_counter = ttk.Label(bar1, text="-", foreground=FG_ACCENT)
         self._lbl_counter.pack(side=tk.LEFT, padx=6)
-        ttk.Button(bar1, text=lang.tr('crop_next'), width=7,
-                   command=self._nav_next).pack(side=tk.LEFT, padx=2)
-        ttk.Label(bar1, text=lang.tr('crop_goto')).pack(side=tk.LEFT, padx=(10, 2))
+        self._bind_text(ttk.Button(bar1, width=7, command=self._nav_next),
+                        'crop_next').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Label(bar1), 'crop_goto').pack(side=tk.LEFT, padx=(10, 2))
         self._spin_goto = ttk.Spinbox(bar1, from_=1, to=1, width=5)
         self._spin_goto.pack(side=tk.LEFT)
         self._spin_goto.bind("<Return>", self._on_goto)
 
         ttk.Separator(bar1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-        self._btn_undo = ttk.Button(bar1, text=lang.tr('annot_undo'), width=6,
-                                    command=self._undo, state="disabled")
+        self._btn_undo = self._bind_text(
+            ttk.Button(bar1, width=6, command=self._undo, state="disabled"),
+            'annot_undo')
         self._btn_undo.pack(side=tk.LEFT, padx=2)
-        self._btn_redo = ttk.Button(bar1, text=lang.tr('annot_redo'), width=6,
-                                    command=self._redo, state="disabled")
+        self._btn_redo = self._bind_text(
+            ttk.Button(bar1, width=6, command=self._redo, state="disabled"),
+            'annot_redo')
         self._btn_redo.pack(side=tk.LEFT, padx=2)
-        ttk.Button(bar1, text=lang.tr('annot_copy_prev'),
-                   command=self._copy_prev).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Button(bar1, command=self._copy_prev),
+                        'annot_copy_prev').pack(side=tk.LEFT, padx=2)
 
         self._auto_save_var = tk.BooleanVar(value=self._settings.annot_auto_save)
-        ttk.Checkbutton(bar1, text=lang.tr('crop_auto_save'),
-                        variable=self._auto_save_var,
-                        command=self._persist_auto_save).pack(side=tk.RIGHT, padx=4)
-        self._btn_save = ttk.Button(bar1, text=lang.tr('annot_save'),
-                                    command=self._save, state="disabled")
+        self._bind_text(
+            ttk.Checkbutton(bar1, variable=self._auto_save_var,
+                            command=self._persist_auto_save),
+            'crop_auto_save').pack(side=tk.RIGHT, padx=4)
+        self._btn_save = self._bind_text(
+            ttk.Button(bar1, command=self._save, state="disabled"), 'annot_save')
         self._btn_save.pack(side=tk.RIGHT, padx=2)
 
         bar2 = ttk.Frame(self)
         bar2.pack(fill=tk.X, padx=8, pady=(2, 4))
-        ttk.Label(bar2, text=lang.tr('annot_current_class')).pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Label(bar2), 'annot_current_class').pack(
+            side=tk.LEFT, padx=2)
         self._cmb_class = ttk.Combobox(bar2, state="readonly", width=24)
         self._cmb_class.pack(side=tk.LEFT, padx=4)
         self._cmb_class.bind("<<ComboboxSelected>>", self._on_class_selected)
-        ttk.Button(bar2, text=lang.tr('annot_edit_classes'),
-                   command=self._edit_classes).pack(side=tk.LEFT, padx=2)
-        ttk.Label(bar2, text=lang.tr('annot_hint'), foreground="#6B7280").pack(
+        self._bind_text(ttk.Button(bar2, command=self._edit_classes),
+                        'annot_edit_classes').pack(side=tk.LEFT, padx=2)
+        self._bind_text(ttk.Label(bar2, foreground="#6B7280"), 'annot_hint').pack(
             side=tk.LEFT, padx=10)
 
         # Viewer + box list
@@ -510,9 +515,9 @@ class AnnotatorWindow(tk.Toplevel):
         side.rowconfigure(0, weight=1)     # box list ≈ 1/4 of the height
         side.rowconfigure(1, weight=3)     # image list ≈ 3/4
 
-        box_panel = ttk.LabelFrame(side, text=lang.tr('annot_box_list'))
-        box_panel.grid(row=0, column=0, sticky="nsew")
-        self._tree = ttk.Treeview(box_panel, columns=("num", "cls", "geo"),
+        self._box_panel = self._bind_text(ttk.LabelFrame(side), 'annot_box_list')
+        self._box_panel.grid(row=0, column=0, sticky="nsew")
+        self._tree = ttk.Treeview(self._box_panel, columns=("num", "cls", "geo"),
                                   show="headings", selectmode="browse")
         self._tree.heading("num", text="#")
         self._tree.heading("cls", text=lang.tr('class_col_name'))
@@ -522,16 +527,15 @@ class AnnotatorWindow(tk.Toplevel):
         self._tree.column("geo", width=120)
         self._tree.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
         self._tree.bind("<<TreeviewSelect>>", self._on_list_select)
-        ttk.Button(box_panel, text=lang.tr('annot_delete_box'),
-                   command=self._delete_selected).pack(fill=tk.X, padx=4, pady=(0, 4))
+        self._bind_text(ttk.Button(self._box_panel, command=self._delete_selected),
+                        'annot_delete_box').pack(fill=tk.X, padx=4, pady=(0, 4))
 
-        img_panel = ttk.LabelFrame(side, text=lang.tr('annot_img_list'))
-        img_panel.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
-        self._img_panel = img_panel
+        self._img_panel = self._bind_text(ttk.LabelFrame(side), 'annot_img_list')
+        self._img_panel.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
 
-        filt = ttk.Frame(img_panel)
+        filt = ttk.Frame(self._img_panel)
         filt.pack(fill=tk.X, padx=4, pady=(4, 0))
-        ttk.Label(filt, text=lang.tr('annot_filter_status')).pack(side=tk.LEFT)
+        self._bind_text(ttk.Label(filt), 'annot_filter_status').pack(side=tk.LEFT)
         self._cmb_filter_state = ttk.Combobox(filt, state="readonly", width=9)
         self._cmb_filter_state['values'] = [lang.tr('annot_filter_all'),
                                             lang.tr('annot_filter_annotated'),
@@ -539,12 +543,12 @@ class AnnotatorWindow(tk.Toplevel):
         self._cmb_filter_state.current(0)
         self._cmb_filter_state.pack(side=tk.LEFT, padx=(2, 8))
         self._cmb_filter_state.bind("<<ComboboxSelected>>", self._on_filter_state_changed)
-        ttk.Label(filt, text=lang.tr('annot_filter_label')).pack(side=tk.LEFT)
+        self._bind_text(ttk.Label(filt), 'annot_filter_label').pack(side=tk.LEFT)
         self._cmb_filter_label = ttk.Combobox(filt, state="readonly", width=12)
         self._cmb_filter_label.pack(side=tk.LEFT, padx=2)
         self._cmb_filter_label.bind("<<ComboboxSelected>>", self._on_filter_label_changed)
 
-        self._img_tree = ttk.Treeview(img_panel, columns=("chk", "name"),
+        self._img_tree = ttk.Treeview(self._img_panel, columns=("chk", "name"),
                                       show="headings", selectmode="browse")
         self._img_tree.heading("chk", text=lang.tr('annot_col_annotated'))
         self._img_tree.heading("name", text=lang.tr('crop_select_col'))
@@ -552,12 +556,40 @@ class AnnotatorWindow(tk.Toplevel):
         self._img_tree.column("name", width=190)
         self._img_tree.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
         self._img_tree.bind("<<TreeviewSelect>>", self._on_img_select)
-
         # Status bar
         self._status_var = tk.StringVar(value=lang.tr('status_ready'))
         self._status_lbl = ttk.Label(self, textvariable=self._status_var,
                                      foreground=FG_ACCENT, anchor=tk.W)
         self._status_lbl.pack(fill=tk.X, padx=8, pady=(2, 4))
+
+    def _bind_text(self, widget, key):
+        """Register a widget's text so a live language switch can retranslate it."""
+        self._i18n.append((widget, key))
+        widget.configure(text=lang.tr(key))
+        return widget
+
+    def _refresh_texts(self):
+        """Re-apply every localized string after lang.set_language()."""
+        self.title(f"{lang.tr('annot_tool')} — YoloToJson")
+        for widget, key in self._i18n:
+            try:
+                widget.configure(text=lang.tr(key))
+            except tk.TclError:
+                pass                    # widget already destroyed
+        self._tree.heading("cls", text=lang.tr('class_col_name'))
+        self._tree.heading("geo", text=lang.tr('annot_col_geo'))
+        self._img_tree.heading("chk", text=lang.tr('annot_col_annotated'))
+        self._img_tree.heading("name", text=lang.tr('crop_select_col'))
+        # Filters keep internal keys ('all'/'annotated'/class id); only the
+        # visible labels change, so the active filter survives the switch.
+        self._cmb_filter_state['values'] = [
+            lang.tr('annot_filter_all'), lang.tr('annot_filter_annotated'),
+            lang.tr('annot_filter_unannotated')]
+        self._cmb_filter_state.current(
+            self._filter_state_keys.index(self._filter_state_key))
+        self._fill_label_filter()
+        self._update_img_panel_title()
+        self._update_status()
 
     def _bind_keys(self):
         self.bind("<Left>", lambda e: self._nav_prev())
@@ -603,6 +635,12 @@ class AnnotatorWindow(tk.Toplevel):
         self._cmb_class.current(self._current_class)
         self._viewer.current_class_id = self._current_class
         # rebuild the label filter, preserving the selection when still valid
+        self._fill_label_filter()
+        self._refresh_img_list()
+
+    def _fill_label_filter(self):
+        """(Re)populate the label filter combo, keeping the selected class key."""
+        values = [f"{i}  {n}" for i, n in enumerate(self._class_names)]
         self._filter_label_keys = ['all'] + [str(i) for i in range(len(self._class_names))]
         self._cmb_filter_label.configure(
             values=[lang.tr('annot_filter_all_labels')] + values)
@@ -610,7 +648,6 @@ class AnnotatorWindow(tk.Toplevel):
             self._filter_label_key = 'all'
         self._cmb_filter_label.current(
             self._filter_label_keys.index(self._filter_label_key))
-        self._refresh_img_list()
 
     def _on_class_selected(self, event=None):
         idx = self._cmb_class.current()
@@ -793,17 +830,19 @@ class AnnotatorWindow(tk.Toplevel):
         if getattr(self, "_img_tree", None) is None:
             return
         self._img_tree.delete(*self._img_tree.get_children())
-        shown = 0
         for p in self._viewer.files:
             if not self._passes_filter(p):
                 continue
-            shown += 1
             self._img_tree.insert(
                 "", tk.END, iid=p,
                 values=("✓" if self._annot_for(p) else "", os.path.basename(p)))
-        self._img_panel.configure(
-            text=lang.tr('annot_img_list') + f" ({shown}/{self._viewer.count})")
+        self._update_img_panel_title()
         self._highlight_current_in_list()
+
+    def _update_img_panel_title(self):
+        shown = len(self._img_tree.get_children())
+        self._img_panel.configure(
+            text=f"{lang.tr('annot_img_list')} ({shown}/{self._viewer.count})")
 
     def _highlight_current_in_list(self):
         cur = self._viewer.current_path

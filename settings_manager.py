@@ -6,10 +6,18 @@ No external dependencies — uses stdlib configparser.
 import os
 import sys
 import json
+import shutil
 import configparser
+from datetime import datetime
 
 
 APP_NAME = "YoloToJson"
+
+# Encodings tried in order when loading config.ini. utf-8-sig also accepts a
+# plain UTF-8 file, so it covers both BOM and no-BOM output from any build.
+# gbk is the Windows locale default older builds wrote with.
+_READ_ENCODINGS = ('utf-8-sig', 'gbk')
+CANONICAL_ENCODING = 'utf-8-sig'
 
 
 def _app_dir():
@@ -21,6 +29,22 @@ def _app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _read_config_text(path):
+    """Decode config.ini, tolerating the encodings older builds produced.
+
+    Returns (text, encoding). Never raises for undecodable bytes: the last
+    resort preserves as much as possible instead of killing startup.
+    """
+    for encoding in _READ_ENCODINGS:
+        try:
+            with open(path, 'r', encoding=encoding) as f:
+                return f.read(), encoding
+        except UnicodeDecodeError:
+            continue
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        return f.read(), 'utf-8-replace'
+
+
 class SettingsManager:
     """Wraps configparser with typed accessors and JSON serialization."""
 
@@ -29,10 +53,45 @@ class SettingsManager:
         self._path = ini_path
         self._cfg = configparser.ConfigParser()
         self._section = "Settings"
+        self.legacy_encoding = None     # set when a non-canonical file was migrated
+        self.legacy_backup = None       # path of the preserved original, if any
+
         if os.path.exists(ini_path):
-            self._cfg.read(ini_path, encoding='utf-8')
+            text, encoding = _read_config_text(ini_path)
+            try:
+                self._cfg.read_string(text, source=ini_path)
+            except configparser.Error:
+                # Structurally broken file: keep a copy, fall back to defaults
+                # rather than refusing to start.
+                self.legacy_encoding = encoding
+                self.legacy_backup = self._backup("unreadable")
+                self._cfg = configparser.ConfigParser()
+            else:
+                if encoding != CANONICAL_ENCODING:
+                    # Migrate once: preserve the original bytes, then rewrite
+                    # the file in the canonical encoding (done by _save below).
+                    self.legacy_encoding = encoding
+                    self.legacy_backup = self._backup(encoding)
+
         if not self._cfg.has_section(self._section):
             self._cfg.add_section(self._section)
+
+        # A losslessly decoded legacy file (e.g. GBK from an older build) is
+        # rewritten in the canonical encoding now, so the next start is clean.
+        # The lossy fallback ('utf-8-replace') is left untouched: rewriting
+        # would bake the replacement characters into the file.
+        if self.legacy_encoding in _READ_ENCODINGS:
+            self._save()
+
+    def _backup(self, reason):
+        """Copy the current config.ini next to itself; returns the copy path."""
+        stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        dest = f"{self._path}.bak_{stamp}_{reason}"
+        try:
+            shutil.copy2(self._path, dest)
+            return dest
+        except OSError:
+            return None
 
     def _save(self):
         with open(self._path, 'w', encoding='utf-8') as f:
